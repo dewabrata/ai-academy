@@ -34,6 +34,7 @@ AWAL_SOAL = re.compile(r"^(?:\s{0,3}(?:\*\*|__)?(\d+)[.)](?:\*\*|__)?\s+"
                        r"|#{2,4}\s*(?:soal|butir|latihan)\s*(\d+))",
                        re.I | re.M)
 MENIT = re.compile(r"(\d+)\s*[–—-]\s*(\d+)")
+BARIS_POINT_BP = re.compile(r"^(\d+)[.)]\s+\S")
 BATAS_WAKTU_LAB = 60
 JUMLAH_QUIZ = 10
 
@@ -95,6 +96,28 @@ def total_menit(bagian: str) -> int | None:
 # ---------------------------------------------------------------------------
 # Pemeriksaan satu pertemuan
 # ---------------------------------------------------------------------------
+# Butir "Di kelas" di blueprint: jatah menit + langkah yang dikerjakan di jam
+# kelas. Hanya ini yang terikat waktu — panjang handbook tidak, karena handbook
+# adalah bahan bacaan mandiri.
+DI_KELAS = re.compile(r"^\s*[-*]\s*Di kelas\s*\((\d+)\s*menit\)\s*:?(.*)$", re.I)
+MENIT_PER_LANGKAH = 2          # patokan kasar: ketik, tunggu keluaran, periksa
+
+
+def in_class_point(bagian: str) -> list[dict]:
+    """Daftar {point, menit, langkah} dari bagian '### Point' satu pertemuan."""
+    hasil: list[dict] = []
+    for baris in bagian.splitlines():
+        m = BARIS_POINT_BP.match(baris)
+        if m:
+            hasil.append({"no": len(hasil) + 1, "menit": None, "langkah": 0})
+            continue
+        m = DI_KELAS.match(baris)
+        if m and hasil:
+            hasil[-1]["menit"] = int(m.group(1))
+            hasil[-1]["langkah"] = len(re.findall(r"\(\d+\)", m.group(2)))
+    return hasil
+
+
 def _pecah_soal(latihan: str) -> list[tuple[str, str]]:
     cocok = list(AWAL_SOAL.finditer(latihan))
     # Soal memakai bentuk penanda terkuat di berkas: judul "### Soal N", lalu
@@ -261,7 +284,28 @@ def periksa_pertemuan(ws: Path, p: dict) -> list[dict]:
     else:
         h.append(_hasil("quiz AIKEN valid", GAGAL, "QUIZ_AIKEN.txt tidak ada", f"{rel}/QUIZ_AIKEN.txt"))
 
-    # 9. Alokasi waktu blueprint
+    # 9. Alokasi menit per point vs langkah yang dikerjakan di kelas
+    bagian = bagian_blueprint(blueprint, no)
+    daftar = in_class_point(rencana.subbagian(bagian, "Point")) if bagian else []
+    if not daftar:
+        h.append(_hasil("menit per point", TAK_BERLAKU,
+                        "blueprint tidak memuat daftar point yang terurai"))
+    else:
+        tanpa = [str(x["no"]) for x in daftar if x["menit"] is None]
+        padat = [f"point {x['no']}: {x['langkah']} langkah / {x['menit']} menit"
+                 for x in daftar if x["menit"] is not None
+                 and x["langkah"] > max(1, x["menit"] // MENIT_PER_LANGKAH)]
+        if tanpa:
+            h.append(_hasil("menit per point", GAGAL,
+                            "tanpa butir 'Di kelas (N menit)': point " + ", ".join(tanpa),
+                            "docs/BLUEPRINT.md"))
+        else:
+            h.append(_hasil("menit per point", GAGAL if padat else LULUS,
+                            "; ".join(padat[:3]) if padat
+                            else f"{len(daftar)} point, langkah in-class sepadan",
+                            "docs/BLUEPRINT.md"))
+
+    # 10. Alokasi waktu blueprint
     durasi = durasi_pertemuan(kurikulum, no)
     total = total_menit(bagian_blueprint(blueprint, no))
     if durasi is None or total is None:

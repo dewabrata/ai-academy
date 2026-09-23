@@ -37,6 +37,7 @@ KUNCI: dict[str, dict] = {
 
     "BUDGET_KURIKULUM": dict(grup="Biaya", label="Kurikulum", tipe="angka"),
     "BUDGET_BLUEPRINT": dict(grup="Biaya", label="Blueprint", tipe="angka"),
+    "BUDGET_BLUEPRINT_TELAAH": dict(grup="Biaya", label="Telaah blueprint", tipe="angka"),
     "BUDGET_POINT_WRITER": dict(grup="Biaya", label="Writer / point", tipe="angka"),
     "BUDGET_POINT_REVIEW": dict(grup="Biaya", label="Reviewer / point", tipe="angka"),
     "BUDGET_POINT_FAKTA": dict(grup="Biaya", label="Fact-Checker / point", tipe="angka"),
@@ -59,6 +60,8 @@ KUNCI: dict[str, dict] = {
     "QUOTA_WAIT": dict(grup="Kuota", label="Saat kuota habis", tipe="pilihan",
                        pilihan=["auto", "ask"]),
     "QUOTA_WAIT_MAX_HOURS": dict(grup="Kuota", label="Batas menunggu (jam)", tipe="angka"),
+    "JARINGAN_TUNGGU_MENIT": dict(grup="Kuota", label="Batas menunggu jaringan (menit)",
+                                  tipe="angka"),
 
     "DASHBOARD_USER": dict(grup="Dashboard", label="Nama pengguna", tipe="teks"),
     "DASHBOARD_PASS": dict(grup="Dashboard", label="Kata sandi", tipe="sandi"),

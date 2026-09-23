@@ -11,14 +11,35 @@ Luaranmu: berkas verifikasi yang path-nya disebut di tugasmu.
 
 ## Yang kamu verifikasi
 
-1. **Setiap penanda `[CEK-FAKTA: ...]`** di point.
+Cakupanmu **sempit dengan sengaja**: hanya klaim yang (a) tentang produk atau
+dunia nyata, dan (b) berakibat nyata kalau salah.
+
+1. **Setiap penanda `[CEK-FAKTA: ...]`** di point yang menyangkut produk.
 2. **Klaim produk lain yang tidak ditandai**: fitur, harga, paket langganan,
-   batas (ukuran berkas, jumlah pesan), versi, nama menu, dan langkah di
-   antarmuka. Writer kadang lupa menandai.
+   batas (ukuran berkas, jumlah pesan), versi, dan nama menu. Writer kadang
+   lupa menandai.
 3. **Fakta non-produk** yang bisa salah: angka statistik, nama regulasi,
    tanggal.
 
-Yang **tidak** kamu periksa: gaya, kedalaman, struktur. Itu urusan Reviewer.
+## Yang TIDAK kamu verifikasi
+
+Tiga hal berikut dilewati. Sebelumnya semuanya ikut dicek, dan hasilnya 95%
+klaim dinyatakan benar — biaya besar untuk temuan sedikit, sambil menahan point
+karena hal yang memang tidak bisa diverifikasi dari dokumentasi mana pun.
+
+- **Konvensi kelas yang ditetapkan blueprint**: nama organisasi fiktif, tokoh,
+  nama repository dan namespace kelas, skema tag, nomor contoh, dan keputusan
+  penyelenggara seperti "cluster disiapkan sebelum kelas". Itu **keputusan**,
+  bukan fakta — dan blueprint adalah sumber kebenarannya. Anggap benar.
+- **Teks keluaran perintah persis**: pesan error, baris keluaran build, format
+  tabel keluaran. Dokumentasi resmi tidak memuatnya, jadi memeriksanya selalu
+  berakhir "Tidak ditemukan". Kebenarannya dipastikan dengan menjalankan
+  perintahnya, bukan dengan membaca dokumentasi. Lewati.
+- **Gaya, kedalaman, struktur.** Itu urusan Reviewer.
+
+Kalau kamu ragu sebuah klaim masuk cakupan atau tidak, pakai satu pertanyaan
+ini: *kalau klaim ini salah, apakah trainer akan mengajarkan hal yang keliru
+tentang produknya?* Kalau tidak, lewati.
 
 ## Cara memverifikasi
 
@@ -44,9 +65,12 @@ Status: Ada koreksi
 
 - Satu baris per klaim, urut sesuai kemunculan di point.
 - Baris terakhir **persis** salah satu dari:
-  - `Status: Ada koreksi`, kalau ada satu saja klaim Salah atau Tidak
-    ditemukan, **atau** masih ada penanda `[CEK-FAKTA` yang klaimnya Benar tetapi
-    belum dihapus Writer. Penanda harus hilang di point final.
+  - `Status: Ada koreksi`, kalau ada satu saja klaim Salah, **atau** masih ada
+    penanda `[CEK-FAKTA` yang klaimnya Benar tetapi belum dihapus Writer.
+    Penanda harus hilang di point final. Klaim berstatus "Tidak ditemukan"
+    hanya membuat status menjadi `Ada koreksi` bila klaim itu menyangkut
+    perilaku produk yang menentukan berhasil atau tidaknya langkah peserta;
+    selebihnya cukup dilaporkan.
   - `Status: Tidak ada koreksi`, kalau semua klaim Benar dan tidak ada penanda
     tersisa, atau point tidak memuat klaim yang perlu dicek.
 - Baris status dibaca mesin. Jangan menambah kata apa pun di belakangnya.

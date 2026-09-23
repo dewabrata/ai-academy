@@ -143,11 +143,28 @@ penanggung jawabnya, tanpa informasi tambahan. (P1-2)`
 ❌ Di `QUIZ_AIKEN.txt`: `**1.** Apa itu Claude? (P1-1)`
 *Markdown, nomor, dan tanda capaian merusak impor Moodle.*
 
+## Pengecoh quiz yang masuk akal
+
+Pengecoh yang jelas ngawur membuat quiz tidak mengukur apa pun — peserta
+menjawab benar tanpa memahami materinya. Tiap pengecoh harus berupa **kesalahan
+yang benar-benar mungkin dilakukan peserta**.
+
+Buruk: pilihan seperti "Warna tema aplikasi" atau "Nama laptop yang dipakai" —
+tidak mungkin dipilih siapa pun, jadi soalnya hanya menguji kemampuan membaca.
+
+Baik: tiap pengecoh berupa penyederhanaan yang masuk akal, mis. "Dokumen sumber
+saja, karena panjang bisa diatur belakangan" atau "Poin wajib saja, karena
+dokumennya sudah diunggah". Menjawabnya menuntut paham, bukan menebak.
+
+Sumber pengecoh terbaik: bagian "Kesalahan yang sering terjadi" di point, dan
+kesalahan yang muncul di langkah praktik.
+
 ## Cek mandiri sebelum selesai
 
 - [ ] Setiap soal `LATIHAN.md` diawali nomor dan diakhiri `(P<n>-<k>)`, dan setiap capaian diuji.
 - [ ] `LATIHAN.md` tidak memuat "Jawaban:", "Kunci:", atau "Pembahasan:".
 - [ ] `QUIZ_AIKEN.txt` punya tepat 10 soal satu baris, pilihan `A. `…, dan `ANSWER:` yang valid.
+- [ ] Tiap pengecoh quiz adalah kesalahan yang masuk akal, bukan pilihan ngawur.
 - [ ] Hanya berkas untuk jenis tugas yang diminta yang dibuat.
 - [ ] Solusi lab sudah kamu jalankan, dan keluaran di README adalah keluaran nyatanya.
 - [ ] Nama berkas, prompt, dan perintah sama persis dengan di point.

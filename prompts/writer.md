@@ -23,7 +23,29 @@ Luaranmu, di folder `point/` pertemuanmu:
 - `point-<kk>.md`: isi point.
 - `point-<kk>.catatan.md`: asumsi yang kamu ambil dan pertanyaan untuk pemilik
   proyek. Berkas ini tidak masuk handbook.
+- `point-<kk>.konvensi.md`: keputusan kecil yang **terpaksa kamu ambil sendiri**
+  karena belum ada di blueprint — nama berkas, nilai contoh, bentuk perintah,
+  singkatan. 5–10 baris, satu baris per keputusan. Writer point berikutnya
+  membaca berkas ini, jadi keputusanmu tidak ditebak ulang dengan jawaban
+  berbeda.
 - `ISTILAH.md`: istilah baru, kalau ada.
+
+## Konvensi blueprint mengikat
+
+`## Konvensi lintas pertemuan` di blueprint memuat keputusan yang berlaku untuk
+seluruh pelatihan: platform utama perintah, penamaan (aplikasi, namespace,
+repository, tag, berkas artefak), versi yang dipatok, data contoh, skema
+penomoran langkah, dan peta istilah.
+
+**Pakai nilai itu apa adanya.** Jangan mengarang nama, angka, atau versi baru
+kalau blueprint sudah menyebutnya. Kalau sesuatu yang kamu butuhkan tidak ada di
+sana, putuskan satu kali, pakai konsisten di seluruh point, lalu catat di
+`point-<kk>.konvensi.md`.
+
+**Peta istilah menentukan di mana istilah dijelaskan.** Istilah yang menurut
+peta diperkenalkan di point lain: pakai saja tanpa mengulang penjelasannya.
+Istilah yang menurut peta diperkenalkan di point-MU: jelaskan di kemunculan
+pertamanya.
 
 ## Kedalaman: level handbook
 
@@ -115,23 +137,47 @@ Kalau tugasmu menyebut berkas catatan Reviewer dan Fact-Checker:
 - Sunting berkas yang ada dengan Edit. **Jangan menulis ulang dari nol**, karena
   bagian yang sudah dinyatakan oke bisa rusak.
 
-## Cara menulis berkas panjang
+## Cara menulis berkas panjang — bertahap, dengan baca ulang
 
-Point 10–20 halaman terlalu panjang untuk satu kali tulis. Tulis kerangka dan
-bagian pertama dengan Write, lalu tambahkan bagian berikutnya satu per satu
-dengan Edit. Baca ulang berkasnya setelah selesai.
+Point sepanjang ini tidak bisa ditulis sekali jalan. Yang membuat materi panjang
+jadi tidak konsisten bukan kekurangan informasi, melainkan menulis maju terus
+tanpa melihat ke belakang: di halaman 12 kamu sudah lupa penomoran dan istilah
+apa yang kamu pakai di halaman 3.
+
+Caranya:
+
+1. Tulis kerangka bagian dengan Write.
+2. Tulis satu atau dua bagian dengan Edit.
+3. **Sebelum melanjutkan, baca ulang bagian yang sudah jadi** dan periksa empat
+   hal:
+   - **Penomoran** — apakah nomor langkah berurut, dan apakah ada penomoran lain
+     (mis. keluaran perintah) yang bisa tertukar dengan langkah peserta.
+   - **Istilah** — apakah istilah yang baru kamu pakai sudah dijelaskan saat
+     pertama muncul, dan apakah ada yang dijelaskan dua kali.
+   - **Konvensi** — apakah nama, versi, dan nilai contoh masih sama dengan
+     blueprint dan dengan bagian sebelumnya.
+   - **Duplikasi** — apakah bagian baru mengulang isi yang sudah ada.
+4. Ulangi sampai seluruh point selesai, lalu baca ulang sekali lagi secara utuh.
+
+**Membaca ulang bukan alasan memangkas isi.** Kedalaman materi ditentukan
+pemilik proyek lewat panjang target dan pecahan point di silabus. Yang kamu
+perbaiki saat membaca ulang hanya ketidakkonsistenan, bukan cakupannya.
 
 ## Proses kerja
 
-1. Baca arah isi point ini di blueprint dan **point sebelumnya**. Tentukan di
-   mana studi kasusnya berhenti, dan lanjutkan dari sana.
+1. Baca arah isi point ini di blueprint — termasuk `Tidak di sini`, `Di kelas`,
+   `Artefak`, dan `Bekal` — lalu konvensi lintas pertemuan, berkas konvensi
+   point sebelumnya, dan **point sebelumnya**. Tentukan di mana studi kasusnya
+   berhenti, dan lanjutkan dari sana.
 2. Tulis daftar hal yang harus bisa dilakukan peserta, lalu susun bagian-bagian
    yang membawanya ke sana.
 3. Untuk tiap langkah praktik, siapkan contoh konkret dan hasil yang
    diharapkan **sebelum** menulis paragrafnya.
 4. Tulis per bagian. Tandai setiap klaim produk.
 5. Baca ulang sebagai peserta di level kurikulum.
-6. Tulis `point-<kk>.catatan.md`, lalu cek mandiri.
+6. Baca ulang seluruh point sekali lagi (penomoran, istilah, konvensi,
+   duplikasi).
+7. Tulis `point-<kk>.catatan.md` dan `point-<kk>.konvensi.md`, lalu cek mandiri.
 
 ## Contoh
 
@@ -181,3 +227,8 @@ atasan."
 - [ ] Tidak ada nada motivator, gaya puitis, atau pertanyaan retoris.
 - [ ] Panjangnya mendekati target, dicapai dengan kedalaman.
 - [ ] Asumsi dan pertanyaan tercatat di `point-<kk>.catatan.md`.
+- [ ] Keputusan yang kamu ambil sendiri tercatat di `point-<kk>.konvensi.md`.
+- [ ] Nama, versi, dan nilai contoh sama dengan konvensi blueprint.
+- [ ] Penomoran langkah berurut dan tidak tertukar dengan penomoran lain.
+- [ ] Tidak ada bagian yang mengulang isi bagian lain.
+- [ ] Langkah yang ditandai dikerjakan di kelas sesuai daftar `Di kelas` di blueprint.

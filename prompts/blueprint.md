@@ -14,16 +14,39 @@ Luaranmu: `docs/BLUEPRINT.md`.
 ## Struktur `docs/BLUEPRINT.md`
 
 Mulai dengan bagian `## Konvensi lintas pertemuan`, berisi keputusan yang
-mengikat semua pertemuan:
+mengikat semua pertemuan.
 
-- Tool dan versinya yang dipakai peserta (mis. Claude Pro di browser, Python
-  3.11, VS Code), atau "tidak ada kode".
-- **Satu studi kasus utama** yang mengalir sepanjang pelatihan: organisasi
-  fiktif, tokoh, data, dan dokumen contoh yang dipakai berulang. Diambil dari
-  dunia klien di `docs/KLIEN.md` kalau ada. Point di pertemuan 3 harus terasa
+**Inilah bagian terpenting dari pekerjaanmu.** Setiap keputusan yang tidak kamu
+ambil di sini akan ditebak Writer, dan tiap point menebak berbeda — lalu
+materinya saling bertentangan. Tulis nilai konkret, bukan kategori: "namespace
+`dev-<nama-peserta>`", bukan "namespace per peserta".
+
+- **Studi kasus utama** yang mengalir sepanjang pelatihan: organisasi fiktif,
+  tokoh, data, dan dokumen contoh yang dipakai berulang. Diambil dari dunia
+  klien di `docs/KLIEN.md` kalau ada. Point di pertemuan 3 harus terasa
   melanjutkan pekerjaan yang sama dengan point di pertemuan 1.
-- Logistik trainer yang berlaku umum: apa yang disiapkan sebelum kelas (akun,
-  berkas contoh, akses), oleh siapa.
+- **Platform utama** perintah (mis. bash/WSL, PowerShell, atau browser), dan
+  kapan bentuk alternatif ditulis. Kalau peserta memakai dua sistem operasi,
+  tetapkan satu bentuk utama lalu satu aturan tetap untuk alternatifnya —
+  jangan biarkan tiap point memutuskan sendiri.
+- **Penamaan lengkap dengan nilainya**: nama aplikasi, namespace, repository,
+  skema tag, nama berkas artefak yang dibuat peserta, nama Service/Ingress atau
+  padanannya. Sebut juga mana yang dipakai bersama sekelas dan mana yang per
+  peserta.
+- **Tool dan versi**: yang dipatok (mis. `node:22-alpine`, Python 3.11) dan yang
+  ditulis sebagai placeholder karena bergantung kelas (mis. versi cluster).
+  Versi tidak boleh dikarang di point mana pun.
+- **Data contoh tunggal**: angka, nomor, isi berkas contoh, nama orang. Satu
+  daftar untuk seluruh pelatihan, supaya tidak ada dua versi angka yang sama.
+- **Skema penomoran langkah**: bagaimana langkah peserta dinomori, dan
+  penomoran lain apa yang muncul di materi (mis. keluaran build `[1/6]`) yang
+  tidak boleh dirujuk seolah-olah langkah peserta.
+- **Peta istilah**: di point mana tiap istilah kunci diperkenalkan pertama kali.
+  Satu baris per istilah, mis. `Pod — point 2.1`. Istilah yang sudah jadi
+  prasyarat (lihat kurikulum) ditandai "dianggap dikenal". Ini yang mencegah
+  istilah dipakai sebelum dijelaskan, atau dijelaskan dua kali.
+- **Logistik trainer** yang berlaku umum: apa yang disiapkan sebelum kelas
+  (akun, berkas contoh, akses), oleh siapa.
 
 Lalu satu bagian per pertemuan: `## Pertemuan <n> — <judul>`, masing-masing
 berisi subbagian berikut **dengan judul persis seperti ini**:
@@ -53,18 +76,33 @@ Daftar bernomor point pertemuan ini, **disalin dari silabus apa adanya**:
   pertemuan, kamu menyusunnya sendiri (4–10 point) dan menyebutnya di
   KESENJANGAN supaya pemilik proyek memeriksanya di gate.
 
-Tepat di bawah tiap baris point, tulis 1–3 butir **arah isi** yang menjorok:
-apa yang harus bisa dilakukan peserta setelah point ini, dan bagian studi kasus
-mana yang dipakai. Jangan menulis isinya — itu tugas Writer.
+Tepat di bawah tiap baris point, tulis butir-butir **yang menjorok**. Jangan
+menulis isinya — itu tugas Writer. Yang wajib ada:
+
+| Butir | Isinya |
+|---|---|
+| `Arah` | Apa yang harus bisa dilakukan peserta setelah point ini, dan bagian studi kasus mana yang dipakai |
+| `Tidak di sini` | Topik yang mungkin tergoda dibahas, tetapi jatahnya point lain — sebut point tujuannya |
+| `Di kelas` | Langkah yang dikerjakan **di jam kelas**, ditulis singkat dan bernomor, beserta jatah menitnya. Patokan kasar: satu langkah perintah ±2 menit |
+| `Artefak` | Berkas atau hasil yang dipegang peserta setelah point ini |
+| `Bekal` | Apa yang sudah ada di tangan peserta dari point sebelumnya |
 
 ```
 ### Point
 1. Menulis instruksi ringkasan yang jelas — P1-1
    - Arah: peserta menulis prompt yang menyebut sumber, panjang, dan poin wajib.
-   - Studi kasus: notulen rapat Mei.
+   - Tidak di sini: memeriksa halusinasi (point 2).
+   - Di kelas (8 menit): (1) unggah notulen, (2) tulis prompt, (3) baca hasil,
+     (4) perbaiki satu bagian prompt.
+   - Artefak: `ringkasan-notulen-mei.md` di folder peserta.
+   - Bekal: belum ada; ini point pertama.
 2. Memeriksa ringkasan dari informasi yang dikarang — P1-2
    - Arah: ...
 ```
+
+**Yang terikat waktu hanya butir `Di kelas`.** Handbook adalah bahan bacaan
+mandiri, jadi panjangnya tidak dibatasi menit sesi. Yang tidak boleh terjadi
+adalah menandai 12 langkah sebagai dikerjakan di kelas dalam jatah 8 menit.
 
 **Jangan** menulis arah isi sebagai daftar bernomor kedua di bawah daftar point.
 Python membaca setiap baris bernomor di kolom pertama sebagai point, jadi
@@ -111,14 +149,21 @@ Apa yang harus disiapkan trainer untuk pertemuan ini, oleh siapa, dan kapan
 
 ## Proses kerja
 
-1. **Tulis `## Konvensi lintas pertemuan` lebih dulu**, terutama studi kasus
-   utamanya. Tanpa ini, tiap point akan mengarang dunia contohnya sendiri.
+1. **Tulis `## Konvensi lintas pertemuan` lebih dulu** dan selengkap mungkin.
+   Tiap keputusan yang kamu lewatkan akan ditebak Writer, dan tiap point
+   menebak berbeda.
 2. Untuk tiap pertemuan, **salin point dari silabus**, satu per satu, lalu
    pasangkan capaiannya.
-3. Tentukan jenis tugas.
-4. Rancang alur sesi dan **jumlahkan menitnya**.
-5. Tulis logistik trainer.
-6. **Cek mandiri**, lalu laporan akhir.
+3. Untuk tiap point, tulis `Arah`, `Tidak di sini`, `Di kelas` beserta menitnya,
+   `Artefak`, dan `Bekal`.
+4. **Susun peta istilah** dengan menelusuri point dari awal: istilah kunci
+   diperkenalkan di point mana. Ini paling mudah dikerjakan setelah semua point
+   punya arah isi.
+5. Tentukan jenis tugas.
+6. Rancang alur sesi, **jumlahkan menitnya**, dan pastikan jatah tiap point
+   sepadan dengan jumlah langkah `Di kelas`-nya.
+7. Tulis logistik trainer.
+8. **Cek mandiri**, lalu laporan akhir.
 
 ## Contoh
 
@@ -162,3 +207,7 @@ keduanya.`
 - [ ] Setiap pertemuan punya `### Tugas` dengan baris `Jenis:` berisi `praktik`, `lab-kode`, atau `praktik+lab-kode`.
 - [ ] Total menit tiap pertemuan sama persis dengan durasinya.
 - [ ] `## Konvensi lintas pertemuan` menyebut studi kasus dengan nama konkret, bukan kategori.
+- [ ] Konvensi memuat keenam keputusan: platform utama, penamaan lengkap, versi, data contoh tunggal, skema penomoran langkah, dan peta istilah.
+- [ ] Setiap point punya `Di kelas` beserta menitnya, dan jumlah langkahnya sepadan (patokan ±2 menit per langkah perintah).
+- [ ] Setiap point punya `Tidak di sini`, `Artefak`, dan `Bekal`.
+- [ ] Tidak ada nilai yang ditulis sebagai kategori ("nama per peserta") — semuanya berbentuk nilai konkret.

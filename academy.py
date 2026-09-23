@@ -594,7 +594,7 @@ def kesenjangan(teks: str) -> str:
 # ---------------------------------------------------------------------------
 async def doc_with_gate(label: str, doc: str, prompt: str, role: dict, ws: Path,
                         budget_usd: float, lampiran: list | None = None,
-                        tambahan_gate: str = "", ringkas_fn=None):
+                        tambahan_gate: str = "", ringkas_fn=None, telaah_fn=None):
     """Tulis dokumen -> gate -> revisi sampai disetujui."""
     docs = ws / "docs"
     fb = docs / f"{doc}_FEEDBACK.md"
@@ -610,12 +610,18 @@ async def doc_with_gate(label: str, doc: str, prompt: str, role: dict, ws: Path,
                                             wilayah=docs)
             pending.write_text(laporan or "1", encoding="utf-8")
 
+        # Telaah dokumen dijalankan SETELAH dokumen jadi dan SEBELUM gate, supaya
+        # pemilik proyek memutuskan dengan temuan di tangan.
+        hasil_telaah = await telaah_fn() if telaah_fn else ""
+
         gap = kesenjangan(pending.read_text(encoding="utf-8"))
         tanya = f"Review {docs / (doc + '.md')}. Setuju?"
         if tambahan_gate:
             tanya += f"\n\n{tambahan_gate}"
         if ringkas_fn:
             tanya += f"\n\n{ringkas_fn()}"
+        if hasil_telaah:
+            tanya += f"\n\n{hasil_telaah}"
         if gap:
             tanya += f"\n\nYang dikeluhkan {label}:\n{gap}"
         tanya += f"\n\n{ringkas_biaya(label)}"
@@ -627,6 +633,42 @@ async def doc_with_gate(label: str, doc: str, prompt: str, role: dict, ws: Path,
             return
         fb.write_text(ans, encoding="utf-8")
         print(f">>> Masukan disimpan ke {fb.name}, {label} mengerjakan revisi.")
+
+
+async def telaah_blueprint(ws: Path) -> str:
+    """Telaah blueprint sebelum dipakai memproduksi semua point.
+
+    Blueprint dibaca setiap peran di setiap point, jadi satu kekurangan di sana
+    berlipat sebanyak jumlah point — dan Writer tidak berwenang memperbaikinya.
+    Penelaah hanya melaporkan; yang memutuskan tetap pemilik proyek di gate.
+    """
+    docs = ws / "docs"
+    out = docs / "TELAAH_BLUEPRINT.md"
+    out.unlink(missing_ok=True)
+    try:
+        await run_stage_retry("TELAAH-BLUEPRINT", (
+            "Mode blueprint. Telaah docs/BLUEPRINT.md terhadap sumber/silabus.txt dan "
+            "docs/KURIKULUM.md. Periksa kelengkapan konvensi, kesepadanan jatah menit "
+            "dengan langkah 'Di kelas', pertentangan internal, batas antarpoint, dan "
+            "kesetiaan daftar point pada silabus.\n"
+            f"Tulis catatanmu ke {_rel(ws, out)} dengan format wajib. JANGAN mengubah "
+            "docs/BLUEPRINT.md — kamu melaporkan, pemilik proyek yang memutuskan."
+        ), roles.REVIEWER, ws, budget("BLUEPRINT_TELAAH", 2.0), boleh_tanya=False,
+            wilayah=docs)
+    except StageFailed as e:
+        return f"Telaah blueprint gagal ({e}). Blueprint tetap bisa disetujui apa adanya."
+
+    revisi = butir_catatan(out, "Revisi")
+    tanya = butir_catatan(out, "Perlu dicek-ditanyakan")
+    if not revisi and not tanya:
+        return "Telaah blueprint: tidak ada temuan."
+    baris = [f"Telaah blueprint ({len(revisi)} temuan, {len(tanya)} pertanyaan) — "
+             f"lengkapnya di {_rel(ws, out)}:"]
+    baris += [f"- {b[:200]}" for b in revisi[:6]]
+    if len(revisi) > 6:
+        baris.append(f"- ... dan {len(revisi) - 6} temuan lain")
+    baris += [f"- (tanya) {b[:160]}" for b in tanya[:3]]
+    return "\n".join(baris)
 
 
 # ---------------------------------------------------------------------------
@@ -787,22 +829,34 @@ def rujukan_umum(ws: Path, p: dict) -> str:
     return teks
 
 
+def berkas_konvensi(ws: Path, p: dict, k: int) -> list[Path]:
+    """Catatan konvensi point-point sebelumnya di pertemuan ini, urut nomor."""
+    f = folder_pertemuan(ws, p["no"])
+    return [x for x in sorted((f / "point").glob("point-[0-9][0-9].konvensi.md"))
+            if int(x.name.split("-")[1].split(".")[0]) < k]
+
+
 def rujukan_sebelumnya(ws: Path, p: dict, k: int) -> str:
     f = folder_pertemuan(ws, p["no"])
+    konv = berkas_konvensi(ws, p, k)
+    awalan = ""
+    if konv:
+        awalan = (f"- {', '.join(_rel(ws, x) for x in konv[-6:])} — keputusan yang sudah "
+                  f"diambil Writer point sebelumnya. Pakai nilai yang sama.\n")
     if k > 1:
         teks = (f"- {_rel(ws, berkas_point(f, k - 1))} — point sebelumnya. Baca UTUH: "
                 f"studi kasus point ini melanjutkan dari sana.\n")
         if k > 2:
             teks += (f"- point 1–{k - 2} di {_rel(ws, f / 'point')}/ — baca judul dan "
                      f"subjudulnya saja (Grep '^#'), supaya tidak mengulang.\n")
-        return teks
+        return awalan + teks
     # Point pertama: sambung ke point terakhir pertemuan sebelumnya, kalau ada.
     lalu = sorted(x for x in (ws / "materi").glob("pertemuan-*/point/point-[0-9][0-9].md")
                   if int(x.parent.parent.name.split("-")[1]) < p["no"])
     if lalu:
-        return (f"- {_rel(ws, lalu[-1])} — point terakhir pertemuan sebelumnya. Baca "
-                f"untuk kesinambungan studi kasus antarpertemuan.\n")
-    return ""
+        return awalan + (f"- {_rel(ws, lalu[-1])} — point terakhir pertemuan sebelumnya. "
+                         f"Baca untuk kesinambungan studi kasus antarpertemuan.\n")
+    return awalan
 
 
 def prompt_writer(ws: Path, p: dict, pt: dict, r: int, st: dict) -> str:
@@ -813,7 +867,8 @@ def prompt_writer(ws: Path, p: dict, pt: dict, r: int, st: dict) -> str:
             f"Panjang target: {OPSI['point_halaman']} halaman.\n\n"
             f"Baca lebih dulu:\n{rujukan_umum(ws, p)}{rujukan_sebelumnya(ws, p, k)}\n"
             f"Tulis point ke {_rel(ws, berkas_point(f, k))}, asumsi dan pertanyaan ke "
-            f"{_rel(ws, berkas_catatan(f, k))}.\n\n")
+            f"{_rel(ws, berkas_catatan(f, k))}, dan keputusan yang terpaksa kamu ambil "
+            f"sendiri ke {_rel(ws, berkas_point(f, k)).replace('.md', '.konvensi.md')}.\n\n")
     if r == st["awal"] + 1 and st.get("masukan"):
         teks += (f"Ini REVISI berdasarkan masukan pemilik proyek di {st['masukan']} "
                  f"(bagian terakhirnya). Terapkan masukan itu pada point yang sudah ada — "
@@ -1382,7 +1437,8 @@ async def pipeline(ws: Path, project: str, teks_silabus: str, mulai: str, pilot_
                f"{fb.name} — baca dan kerjakan.\n" if fb.exists() else "")
         )
         await doc_with_gate("BLUEPRINT", "BLUEPRINT", prompt, roles.BLUEPRINT, ws,
-                            budget("BLUEPRINT", 3.0), ringkas_fn=lambda: ringkas_blueprint(ws))
+                            budget("BLUEPRINT", 3.0), ringkas_fn=lambda: ringkas_blueprint(ws),
+                            telaah_fn=lambda: telaah_blueprint(ws))
         await cek_plafon_proyek()
 
     pertemuan = daftar_pertemuan(ws)
