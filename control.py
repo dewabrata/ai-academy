@@ -638,6 +638,33 @@ BANTUAN = """Kendali AI Academy dari terminal (untuk pemulihan tanpa dashboard).
 """
 
 
+def terapkan_setelan(project: str) -> tuple[bool, str]:
+    """Hentikan pipeline lalu jalankan lagi, supaya setelan .env yang baru dipakai.
+
+    Pipeline membaca `.env` saat ia MULAI. Mengubah API key, model, atau plafon
+    di tengah jalan karena itu tidak berpengaruh sampai prosesnya dijalankan
+    ulang. Tidak ada pekerjaan yang hilang: point yang sudah siap tidak ditulis
+    ulang, dan gate yang sedang menunggu akan terbuka lagi.
+    """
+    if not SAFE_NAME.match(project or ""):
+        return False, "Nama proyek tidak valid."
+    r = running(project)
+    if r and not r.get("basi"):
+        ok, msg = stop(project)
+        if not ok:
+            return False, msg
+        for _ in range(20):                    # tunggu prosesnya benar-benar mati
+            time.sleep(0.5)
+            r = running(project)
+            if not r or r.get("basi"):
+                break
+        else:
+            return False, "Pipeline belum berhenti. Coba lagi sebentar lagi."
+    ok, msg = start(project, "lanjut")
+    return ok, ("Setelan baru diterapkan; pipeline dijalankan lagi dari titik terakhir."
+                if ok else msg)
+
+
 def bersihkan_kunci(project: str) -> tuple[bool, str]:
     """Hapus kunci yang ditinggalkan proses mati. Kunci milik proses HIDUP tidak
     pernah dihapus — dua pipeline menulis ke proyek yang sama jauh lebih buruk

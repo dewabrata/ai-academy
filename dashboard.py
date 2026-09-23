@@ -435,6 +435,9 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/api/slide":
             ok, msg = control.start(p, "slide", str(b.get("pertemuan") or "semua"))
             return self._json({"ok": ok, "msg": msg}, 200 if ok else 400)
+        if u.path == "/api/terapkan-setelan":
+            ok, msg = control.terapkan_setelan(p)
+            return self._json({"ok": ok, "msg": msg}, 200 if ok else 400)
         if u.path == "/api/bersihkan-kunci":
             ok, msg = control.bersihkan_kunci(p)
             return self._json({"ok": ok, "msg": msg}, 200 if ok else 400)
@@ -1246,7 +1249,24 @@ function gambarSetelan(){
     const ph=s.tipe==="sandi"?(s.terisi?"terisi — kosongkan untuk membiarkan":"belum diisi"):"";
     return `<div><label>${esc(s.label)}${s.tipe==="sandi"&&s.terisi?' <span class="pil ok">terisi</span>':""}</label>
       <input id="${id}" ${s.tipe==="sandi"?'type="password"':""} value="${esc(s.nilai)}" placeholder="${esc(ph)}"></div>`;};
-  document.getElementById("setelan").innerHTML=
+  const akun=document.getElementById("akun").textContent||"";
+  const kartuAkun=`<div class="kartu"><h2>Akun yang dipakai pipeline</h2>
+    <p>${esc(akun||"-")}</p>
+    <p class="kecil">Pipeline memakai login <code>claude</code> di mesin ini, sama dengan
+      editor — jadi kuotanya dipakai bersama.</p>
+    <p class="kecil"><b>Ganti akun langganan:</b> jalankan <code>claude</code> di terminal
+      lalu <code>/login</code>. Tidak bisa dari sini karena butuh alur login lewat browser.
+      Akun baru dipakai mulai tahap berikutnya, jadi paling aman dilakukan saat pipeline
+      menunggu gate.</p>
+    <p class="kecil"><b>Pakai API key terpisah:</b> isi <code>ANTHROPIC_API_KEY</code> di
+      grup Autentikasi di bawah. Pipeline lalu memakai kredit API dan berhenti memotong
+      kuota langganan Anda.</p>
+    <div class="baris" style="margin-top:10px">
+      <button onclick="terapkanSetelan()">Terapkan ke pipeline yang sedang berjalan</button>
+      <span class="kecil">Pipeline dihentikan lalu dilanjutkan dari titik terakhir —
+        setelan baru baru berlaku setelah ini.</span>
+    </div></div>`;
+  document.getElementById("setelan").innerHTML=kartuAkun+
     Object.entries(grup).map(([g,l])=>`<div class="kartu"><h2>${esc(g)}</h2>
       <div class="grid g3">${l.map(kolom).join("")}</div>
       ${g==="Telegram"?`<div class="baris" style="margin-top:12px">
@@ -1256,6 +1276,13 @@ function gambarSetelan(){
     +`<div class="baris"><button class="pri" onclick="simpanSetelan()">Simpan pengaturan</button>
       <span class="kecil">Kolom rahasia yang dikosongkan tidak mengubah nilai lama.</span></div>`;
 }
+async function terapkanSetelan(){
+  if(!aktif)return pesan("Pilih proyek dulu di tab Proyek.");
+  if(!confirm(`Hentikan pipeline proyek "${aktif}" lalu jalankan lagi dengan setelan baru?\n\n`
+    +`Tidak ada pekerjaan yang hilang: point yang sudah siap tidak ditulis ulang.`))return;
+  pesan("Menerapkan setelan…");
+  const j=await post("/api/terapkan-setelan",{project:aktif});pesan(j.msg);muatDetail();}
+
 async function simpanSetelan(){
   const d={};
   for(const s of SET){const e=document.getElementById("set-"+s.kunci); if(e)d[s.kunci]=e.value;}
