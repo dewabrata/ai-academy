@@ -1,0 +1,13 @@
+.env
+.env.bak*
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+workspace/
+.locks/
+.pipeline.lock
+*.bak
+*.bak[0-9]
+# Setelan Claude Code per mesin (mis. flag eksperimental agent teams)
+.claude/settings.local.json

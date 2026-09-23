@@ -1,0 +1,8 @@
+claude-agent-sdk>=0.1.0
+python-dotenv>=1.0.0
+# Pembaca silabus .docx dan penulis modul DOCX
+python-docx>=1.1.0
+# Pembaca silabus .pdf
+pdfplumber>=0.11.0
+# Penulis deck presentasi PPTX
+python-pptx>=1.0.0
