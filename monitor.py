@@ -185,6 +185,45 @@ def _tg_poll() -> str | None:
     return None
 
 
+def _balas_perintah(teks: str) -> bool:
+    """Perintah yang masuk SAAT gate terbuka dijawab di tempat, bukan dipakai
+    sebagai jawaban gate.
+
+    Tanpa ini, mengetik `/status` saat pipeline menunggu gate akan diterima
+    sebagai masukan revisi — satu putaran revisi yang mahal dan tidak diminta.
+    """
+    if not teks.startswith("/"):
+        return False
+    cmd = teks.split()[0].lower().lstrip("/")
+    g = _status.get("gate") or {}
+    if cmd in ("status", "s"):
+        c = _status.get("cost") or {}
+        kuota = _status.get("quota") or {}
+        tg_send(
+            f"Proyek: {(_status.get('project') or '-')}\n"
+            f"Tahap: {_status.get('current') or '-'}\n"
+            + (f"Point: {_status.get('point')} — {_status.get('point_judul', '')}\n"
+               if _status.get("point") else "")
+            + f"Menunggu gate: {g.get('label') or '-'}\n"
+            f"Biaya: ${(c.get('total') or 0):.2f}\n"
+            + (f"Kuota {kuota.get('type', '')}: {kuota.get('status')}\n"
+               if kuota.get("status") else "")
+            + ("\nPipeline MENUNGGU jawabanmu. Balas: y / q / teks masukan."
+               if g.get("label") else ""))
+    elif cmd in ("help", "bantuan", "start"):
+        tg_send("Pipeline sedang menunggu jawaban gate. Yang dikenali sekarang:\n"
+                "  y = setuju dan lanjutkan\n"
+                "  q = berhenti (pekerjaan tetap tersimpan)\n"
+                "  teks lain = masukan revisi\n"
+                "  /status = keadaan pipeline\n\n"
+                "Perintah lain (/daftar, /lanjut, /stop) hanya berfungsi saat tidak ada "
+                "pipeline berjalan.")
+    else:
+        tg_send(f"Perintah '{cmd}' tidak berlaku saat gate terbuka, dan TIDAK dipakai "
+                f"sebagai jawaban. Balas y / q / teks masukan, atau /status.")
+    return True
+
+
 def tg_drain():
     """Buang pesan lama supaya jawaban gate tidak diambil dari pesan sebelum pipeline jalan."""
     while _tg_poll() is not None:
@@ -264,6 +303,10 @@ async def ask(question: str, label: str, files: list | None = None) -> str:
             ans, src = _baca_jawaban_berkas(), "dashboard"
             if not ans:
                 ans, src = _tg_poll(), "telegram"
+                # Perintah (/status, /help) dijawab di tempat. Tanpa ini, mengetik
+                # /status saat gate terbuka diterima sebagai MASUKAN REVISI.
+                if ans and _balas_perintah(ans):
+                    ans = None
         if ans:
             print(f"> [{src}] {ans}")
             emit("gate_answer", label=label, answer=ans, source=src)

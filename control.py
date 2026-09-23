@@ -510,7 +510,8 @@ HELP = ("Perintah AI Academy (hanya saat tidak ada pipeline berjalan):\n"
         "/lanjut - lanjutkan dari tahap terakhir\n"
         "/resume <tahap> - mulai dari tahap tertentu "
         "(kurikulum|blueprint|produksi|akhir)\n"
-        "/stop - hentikan pipeline yang berjalan\n\n"
+        "/stop - hentikan pipeline yang berjalan\n"
+        "/kunci - bersihkan kunci yang ditinggalkan proses mati\n\n"
         "Saat pipeline berjalan, chat ini dipakai gate: balas y / q / teks masukan.\n"
         "Proyek baru dimulai dari dashboard atau terminal, karena silabusnya perlu "
         "diunggah dulu.")
@@ -562,14 +563,26 @@ def handle(text: str, project: str | None) -> tuple[str, str | None]:
 
     if cmd == "status":
         st = _status(project)
-        r = running(project)
+        d = diagnosa(project)
+        point = _status_point(project)
+        siap = sum(1 for v in point.values() if v.get("status") == "siap")
+        esk = [k for k, v in point.items() if v.get("status") == "eskalasi"]
+        kuota = st.get("quota") or {}
         return (f"Proyek: {project}\n"
-                f"Tahap: {(WS / project / 'docs' / 'STATE.txt').read_text(encoding='utf-8').strip() if (WS / project / 'docs' / 'STATE.txt').exists() else 'baru'}\n"
-                f"Tahap berjalan: {st.get('current') or '-'}\n"
-                f"Pipeline: {'berjalan (PID ' + str(r.get('pid')) + ')' if r and not r.get('basi') else 'tidak berjalan'}\n"
-                f"Pertemuan selesai: {st.get('pertemuan_selesai', '-')}\n"
-                f"Temuan sisa: {st.get('temuan_sisa', '-')}\n"
-                f"Biaya: ${(st.get('cost') or {}).get('total', 0):.2f}"), project
+                f"Tahap: {d['tahap']} — {d['keadaan']}\n"
+                f"Tahap berjalan: {d['sekarang'] or '-'}\n"
+                f"Pertemuan disetujui: {st.get('pertemuan_selesai', '-')}"
+                f" dari {st.get('pertemuan_total', '-')}\n"
+                f"Point: {siap} siap"
+                + (f", {len(esk)} eskalasi ({', '.join(esk[:5])})" if esk else "") + "\n"
+                + (f"Skor pemeriksaan: {st['skor_pemeriksaan']}%\n"
+                   if st.get("skor_pemeriksaan") is not None else "")
+                + (f"Kuota {kuota.get('type', '')}: {kuota.get('status')}\n"
+                   if kuota.get("status") else "")
+                + f"Biaya: ${(st.get('cost') or {}).get('total', 0):.2f}\n\n"
+                + d["saran"]), project
+    if cmd == "kunci":
+        return bersihkan_kunci(project)[1], project
     if cmd == "stop":
         return stop(project)[1], project
     if cmd in ("lanjut", "resume"):
@@ -648,6 +661,13 @@ def diagnosa(project: str) -> dict:
                     else "kunci-basi" if r["kunci_basi"] else "berhenti")
     r["saran"] = _saran(r)
     return r
+
+
+def _status_point(project: str) -> dict:
+    try:
+        return json.loads((WS / project / "docs" / "PRODUKSI.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
 
 
 def _ringkas(project: str) -> dict:
