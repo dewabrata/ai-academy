@@ -24,6 +24,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+import monitor          # dipakai untuk monitor.form(): satu gaya pesan Telegram
+
 ROOT = Path(__file__).parent
 WS = ROOT / "workspace"
 LOCKS = ROOT / ".locks"
@@ -530,10 +532,12 @@ def _tg(method: str, **params):
         return None
 
 
-def say(text: str):
+def say(text: str, html: bool = False):
     chat = os.getenv("TELEGRAM_CHAT_ID")
-    if chat:
-        _tg("sendMessage", chat_id=chat, text=text[:3900])
+    if not chat:
+        return
+    extra = {"parse_mode": "HTML"} if html else {}
+    _tg("sendMessage", chat_id=chat, text=text[:3900], **extra)
 
 
 def handle(text: str, project: str | None) -> tuple[str, str | None]:
@@ -547,9 +551,10 @@ def handle(text: str, project: str | None) -> tuple[str, str | None]:
         d = daftar_proyek()
         if not d:
             return "Belum ada proyek di workspace/.", project
-        return "\n".join(
-            f"{'▶' if p['berjalan'] else '·'} {p['nama']} — tahap {p['tahap']}, "
-            f"{p['pertemuan']} pertemuan, ${p['biaya']:.2f}" for p in d[:20]), project
+        return monitor.form("Daftar proyek", [
+            (("▶ " if p["berjalan"] else "· ") + p["nama"][:24],
+             f"{p['tahap']} · {p['pertemuan']} pertemuan · ${p['biaya']:.2f}")
+            for p in d[:15]], "Pilih dengan /proyek <nama>."), project
     if cmd == "proyek":
         if not SAFE_NAME.match(arg or "") or not (WS / arg).exists():
             ada = ", ".join(p["nama"] for p in daftar_proyek()) or "(kosong)"
@@ -568,19 +573,19 @@ def handle(text: str, project: str | None) -> tuple[str, str | None]:
         siap = sum(1 for v in point.values() if v.get("status") == "siap")
         esk = [k for k, v in point.items() if v.get("status") == "eskalasi"]
         kuota = st.get("quota") or {}
-        return (f"Proyek: {project}\n"
-                f"Tahap: {d['tahap']} — {d['keadaan']}\n"
-                f"Tahap berjalan: {d['sekarang'] or '-'}\n"
-                f"Pertemuan disetujui: {st.get('pertemuan_selesai', '-')}"
-                f" dari {st.get('pertemuan_total', '-')}\n"
-                f"Point: {siap} siap"
-                + (f", {len(esk)} eskalasi ({', '.join(esk[:5])})" if esk else "") + "\n"
-                + (f"Skor pemeriksaan: {st['skor_pemeriksaan']}%\n"
-                   if st.get("skor_pemeriksaan") is not None else "")
-                + (f"Kuota {kuota.get('type', '')}: {kuota.get('status')}\n"
-                   if kuota.get("status") else "")
-                + f"Biaya: ${(st.get('cost') or {}).get('total', 0):.2f}\n\n"
-                + d["saran"]), project
+        return monitor.form(f"Keadaan — {project}", [
+            ("Tahap", f"{d['tahap']} · {d['keadaan']}"),
+            ("Berjalan", d["sekarang"] or "-"),
+            ("Pertemuan", f"{st.get('pertemuan_selesai', '-')} dari "
+                          f"{st.get('pertemuan_total', '-')} disetujui"),
+            ("Point", f"{siap} siap" + (f" · {len(esk)} eskalasi" if esk else "")),
+            ("Eskalasi", ", ".join(esk[:6]) if esk else None),
+            ("Skor", f"{st['skor_pemeriksaan']}%"
+             if st.get("skor_pemeriksaan") is not None else None),
+            ("Kuota", f"{kuota.get('type', '')} — {kuota.get('status')}"
+             if kuota.get("status") else None),
+            ("Biaya", f"${(st.get('cost') or {}).get('total', 0):.2f}"),
+        ], d["saran"]), project
     if cmd == "kunci":
         return bersihkan_kunci(project)[1], project
     if cmd == "stop":
@@ -611,7 +616,7 @@ def _loop():
                 if not t.startswith("/"):
                     continue          # teks biasa bukan perintah: abaikan
                 reply, project = handle(t, project)
-                say(reply)
+                say(reply, html=True)
         except Exception:
             pass
         time.sleep(3)

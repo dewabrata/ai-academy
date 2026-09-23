@@ -371,7 +371,8 @@ async def run_stage(label: str, prompt: str, role: dict, cwd: Path, budget_usd: 
     # masih menyimpan gate itu dan dashboard menampilkannya seolah menunggu
     # jawaban. Tahap yang mulai berarti tidak ada gate yang menunggu.
     monitor.set_status(current=label, current_since=time.time(), gate=None)
-    monitor.tg_send(f"▶ {label} mulai" + (" (resume)" if prev else ""))
+    monitor.tg_send(monitor.form(f"▶ {label} mulai" + (" · resume" if prev else ""), [
+        ("Model", model), ("Plafon", plafon)]), html=True)
 
     opts = ClaudeAgentOptions(
         resume=prev,
@@ -427,8 +428,13 @@ async def run_stage(label: str, prompt: str, role: dict, cwd: Path, budget_usd: 
             monitor.add_cost(label, msg.total_cost_usd or 0)
             monitor.emit("stage_end", label=label, turns=msg.num_turns,
                          cost=msg.total_cost_usd, subtype=msg.subtype, ok=not msg.is_error)
-            monitor.tg_send(f"{'✔' if not msg.is_error else '✖'} {label} selesai — "
-                            f"{msg.num_turns} turn, ~${(msg.total_cost_usd or 0):.2f}")
+            monitor.tg_send(monitor.form(
+                f"{'✔' if not msg.is_error else '✖'} {label} selesai", [
+                    ("Turn", msg.num_turns),
+                    ("Biaya", f"${(msg.total_cost_usd or 0):.2f}"),
+                    ("Kumulatif", f"${biaya_total():.2f}"),
+                    ("Hasil", None if not msg.is_error else msg.subtype),
+                ]), html=True)
             if msg.is_error or msg.subtype != "success":
                 err_kind = err_kind or msg.subtype or "unknown"
                 print(f"### [{label}] GAGAL: subtype={msg.subtype} "
@@ -484,7 +490,9 @@ async def tunggu_jaringan(label: str, percobaan: int) -> bool:
     monitor.set_status(current=f"menunggu jaringan ({label})")
     monitor.emit("jaringan", label=label, percobaan=percobaan, jeda=jeda)
     if percobaan == 1:
-        monitor.tg_send(f"Jaringan putus saat {label}. Pipeline menunggu dan mengulang sendiri.")
+        monitor.tg_send(monitor.form("🌐 Jaringan putus", [
+            ("Tahap", label), ("Jeda", f"{jeda} detik"),
+        ], "Pipeline menunggu jaringan kembali lalu mengulang tahap ini sendiri."), html=True)
     await asyncio.sleep(jeda)
     return True
 
@@ -514,7 +522,10 @@ async def wait_for_quota(label: str) -> bool:
     until = datetime.fromtimestamp(time.time() + secs).strftime("%d %b %H:%M")
     print(f">>> Tidur sampai {until} ...")
     monitor.set_status(current=f"menunggu kuota s/d {until}")
-    monitor.tg_send(f"💤 Kuota {kind} habis. Menunggu sampai {until}, lalu {label} diulang.")
+    monitor.tg_send(monitor.form("💤 Kuota habis — pipeline menunggu", [
+        ("Jenis", kind), ("Tahap", label), ("Lanjut", until),
+    ], "Tidak perlu tindakan; pipeline mengulang tahap ini sendiri setelah reset."),
+        html=True)
     await asyncio.sleep(secs)
     return True
 
@@ -1023,8 +1034,12 @@ async def produksi_point(ws: Path, p: dict, pt: dict) -> str:
         monitor.emit("point", pertemuan=no, point=k, putaran=r, review=ok_r, fakta=ok_f,
                      status=hasil or "proses", skor=skor_review(rev))
         if hasil == "eskalasi":
-            monitor.tg_send(f"⚠ Point {no}.{k} belum siap setelah {maks} putaran — "
-                            f"dieskalasi ke gate pertemuan {no}.")
+            monitor.tg_send(monitor.form("⚠ Point dieskalasi", [
+                ("Point", f"{no}.{k}"),
+                ("Judul", pt["judul"][:50]),
+                ("Putaran", f"{maks} (batas)"),
+            ], f"Catatan terakhir dibawa ke gate pertemuan {no}. Produksi lanjut ke "
+               f"point berikutnya."), html=True)
         if hasil:
             return hasil
 
@@ -1513,7 +1528,14 @@ async def pipeline(ws: Path, project: str, teks_silabus: str, mulai: str, pilot_
         "=" * 70,
     ]
     print("\n".join(ringkas))
-    monitor.tg_send("\n".join(ringkas[2:-1]))
+    monitor.tg_send(monitor.form(f"🎉 Selesai — {project}", [
+        ("Pertemuan", f"{len(pertemuan)}" + (f" (belum disetujui: {', '.join(map(str, belum))})"
+                                             if belum else "")),
+        ("Point", f"{jml_point} · siap {siap}" + (f" · eskalasi {len(eskal)}" if eskal else "")),
+        ("Skor pemeriksaan", f"{cek['skor_rata']}%"),
+        ("Skor Reviewer", " ".join(f"{a}={b}" for a, b in rata.items()) if rata else None),
+        ("Biaya", f"${biaya_total():.2f}"),
+    ], f"Materi ada di {(ws / 'materi')}"), html=True)
     monitor.emit("info", msg="pipeline selesai", biaya=biaya_total(), point=jml_point,
                  siap=siap, eskalasi=eskal, skor_reviewer=rata)
 
@@ -1597,7 +1619,12 @@ def main():
     print(f"Point       : {opsi_mod.baca(ws)['point_halaman']} halaman, "
           f"maks. {opsi_mod.baca(ws)['point_maks_putaran']} putaran")
     print("=" * 70)
-    monitor.tg_send(f"🎓 AI Academy mulai — proyek '{project}', dari tahap {mulai}.")
+    monitor.tg_send(monitor.form("🎓 AI Academy mulai", [
+        ("Proyek", project),
+        ("Mulai dari", "slide susulan " + str(a.slide) if a.slide else mulai),
+        ("Silabus", asli.name if asli else "teks langsung"),
+        ("Akun", akun_claude() or auth_mode()),
+    ]), html=True)
 
     try:
         if a.slide:

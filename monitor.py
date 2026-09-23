@@ -113,15 +113,62 @@ def _tg_cfg():
     return (tok, chat) if tok and chat else (None, None)
 
 
-def tg_send(text: str):
+def esc_html(t) -> str:
+    """Telegram HTML hanya mengenal beberapa tag; sisanya harus di-escape."""
+    return (str(t).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+
+
+def form(judul: str, baris: list[tuple[str, object]], catatan: str = "") -> str:
+    """Pesan berbentuk formulir: judul tebal, lalu label dan nilai yang lurus.
+
+    Label dipanjangkan dengan spasi tipis supaya kolom nilainya sejajar di HP,
+    dan seluruh bagian nilai memakai <code> supaya lebarnya tetap.
+    """
+    isi = [x for x in baris if x[1] not in (None, "", [])]
+    lebar = max((len(k) for k, _ in isi), default=0)
+    teks = f"<b>{esc_html(judul)}</b>\n"
+    if isi:
+        teks += "<code>" + "\n".join(
+            f"{esc_html(k.ljust(lebar))} : {esc_html(v)}" for k, v in isi) + "</code>"
+    if catatan:
+        teks += ("\n\n" if isi else "\n") + esc_html(catatan)
+    return teks
+
+
+def tg_send(text: str, tombol: list | None = None, html: bool = False):
+    """Kirim pesan. `tombol` = [[(label, data), ...], ...] menjadi tombol inline.
+
+    Tombol dipakai untuk gate: menekan tombol jauh lebih kecil kemungkinan
+    salahnya daripada mengetik 'y' di ponsel, dan teks yang salah ketik akan
+    diperlakukan sebagai masukan revisi.
+    """
     tok, chat = _tg_cfg()
     if not tok:
         return
+    kirim = {"chat_id": chat, "text": text[:3900]}
+    if html:
+        kirim["parse_mode"] = "HTML"
+    if tombol:
+        kirim["reply_markup"] = json.dumps({"inline_keyboard": [
+            [{"text": t, "callback_data": d} for t, d in baris] for baris in tombol]})
     try:
-        data = urllib.parse.urlencode({"chat_id": chat, "text": text[:3900]}).encode()
+        data = urllib.parse.urlencode(kirim).encode()
         urllib.request.urlopen(f"https://api.telegram.org/bot{tok}/sendMessage", data, timeout=10)
     except Exception as e:  # notifikasi tidak boleh menjatuhkan pipeline
         print(f"  (telegram gagal: {e})")
+
+
+def _tg_jawab_tombol(cb_id: str, teks: str):
+    """Hentikan animasi tunggu di tombol yang baru ditekan."""
+    tok, _ = _tg_cfg()
+    if not tok:
+        return
+    try:
+        data = urllib.parse.urlencode({"callback_query_id": cb_id, "text": teks[:180]}).encode()
+        urllib.request.urlopen(f"https://api.telegram.org/bot{tok}/answerCallbackQuery",
+                               data, timeout=10)
+    except Exception:
+        pass
 
 
 def tg_doc(path, caption: str = ""):
@@ -177,6 +224,14 @@ def _tg_poll() -> str | None:
         with urllib.request.urlopen(url, timeout=10) as r:
             for u in json.load(r).get("result", []):
                 _tg_offset = u["update_id"] + 1
+                cb = u.get("callback_query") or {}
+                if cb and str((cb.get("message") or {}).get("chat", {}).get("id")) == str(chat):
+                    data = (cb.get("data") or "").strip()
+                    _tg_jawab_tombol(cb.get("id", ""),
+                                     "Disetujui" if data == "y" else "Dihentikan")
+                    if data in ("y", "q"):
+                        return data
+                    continue
                 m = u.get("message") or {}
                 if str(m.get("chat", {}).get("id")) == str(chat) and m.get("text"):
                     return m["text"].strip()
@@ -199,17 +254,17 @@ def _balas_perintah(teks: str) -> bool:
     if cmd in ("status", "s"):
         c = _status.get("cost") or {}
         kuota = _status.get("quota") or {}
-        tg_send(
-            f"Proyek: {(_status.get('project') or '-')}\n"
-            f"Tahap: {_status.get('current') or '-'}\n"
-            + (f"Point: {_status.get('point')} — {_status.get('point_judul', '')}\n"
-               if _status.get("point") else "")
-            + f"Menunggu gate: {g.get('label') or '-'}\n"
-            f"Biaya: ${(c.get('total') or 0):.2f}\n"
-            + (f"Kuota {kuota.get('type', '')}: {kuota.get('status')}\n"
-               if kuota.get("status") else "")
-            + ("\nPipeline MENUNGGU jawabanmu. Balas: y / q / teks masukan."
-               if g.get("label") else ""))
+        tg_send(form("Keadaan pipeline", [
+            ("Proyek", _status.get("project") or "-"),
+            ("Tahap", _status.get("current") or "-"),
+            ("Point", (f"{_status.get('point')} · {_status.get('point_judul', '')}"[:60]
+                       if _status.get("point") else None)),
+            ("Gate", g.get("label")),
+            ("Biaya", f"${(c.get('total') or 0):.2f}"),
+            ("Kuota", (f"{kuota.get('type', '')} — {kuota.get('status')}"
+                       if kuota.get("status") else None)),
+        ], "Pipeline menunggu jawabanmu. Balas: y / q / teks masukan."
+           if g.get("label") else "Tidak ada gate yang menunggu."), html=True)
     elif cmd in ("help", "bantuan", "start"):
         tg_send("Pipeline sedang menunggu jawaban gate. Yang dikenali sekarang:\n"
                 "  y = setuju dan lanjutkan\n"
@@ -287,7 +342,16 @@ async def ask(question: str, label: str, files: list | None = None) -> str:
     # jadi pesan terakhir dan paling terlihat di chat.
     for f in files or []:
         tg_doc(f, f"{label}: {Path(f).name} - baca dulu, lalu jawab pertanyaan di bawah.")
-    tg_send(f"⏸ {label}\n{question}\n\nBalas: y (setuju) / q (berhenti) / teks masukan")
+    c = _status.get("cost") or {}
+    tg_send(form(f"⏸ Menunggu keputusan — {label}", [
+        ("Proyek", _status.get("project") or "-"),
+        ("Tahap", _status.get("current") or "-"),
+        ("Point", (f"{_status.get('point')} · {_status.get('point_judul', '')}"[:60]
+                   if _status.get("point") else None)),
+        ("Biaya", f"${(c.get('total') or 0):.2f}"),
+    ], question[:2600]) + "\n\n<i>Tekan tombol, atau balas teks untuk memberi masukan "
+       "revisi.</i>",
+        tombol=[[("✅ Setuju, lanjutkan", "y"), ("⏹ Berhenti", "q")]], html=True)
 
     if not _stdin_started:
         threading.Thread(target=_stdin_reader, daemon=True).start()
@@ -312,6 +376,10 @@ async def ask(question: str, label: str, files: list | None = None) -> str:
             emit("gate_answer", label=label, answer=ans, source=src)
             set_status(gate=None)
             if src == "telegram":
-                tg_send(f"✅ diterima: {ans[:200]}")
+                tg_send(form("✅ Jawaban diterima", [
+                    ("Gate", label),
+                    ("Jawaban", "setuju, lanjutkan" if ans.lower() == "y"
+                     else "berhenti" if ans.lower() == "q" else ans[:120]),
+                ]), html=True)
             return ans
         await asyncio.sleep(2)
