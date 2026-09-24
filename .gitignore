@@ -11,3 +11,5 @@ workspace/
 *.bak[0-9]
 # Setelan Claude Code per mesin (mis. flag eksperimental agent teams)
 .claude/settings.local.json
+status.json
+events.jsonl

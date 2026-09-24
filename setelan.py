@@ -21,6 +21,10 @@ from dotenv import load_dotenv
 
 ENV = Path(__file__).parent / ".env"
 
+# Dimuat saat impor supaya modul ini melihat setelan yang sama dengan pemanggilnya,
+# termasuk saat dipakai dari skrip kecil yang tidak memanggil load_dotenv sendiri.
+load_dotenv(ENV)
+
 # grup, label, tipe (teks|angka|sandi|pilihan), pilihan
 KUNCI: dict[str, dict] = {
     "TELEGRAM_BOT_TOKEN": dict(grup="Telegram", label="Bot token", tipe="sandi"),
