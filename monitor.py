@@ -179,22 +179,61 @@ GATE_MASUKAN = "Tulis masukan"
 GATE_CONTOH = "Contoh: point 3 terlalu panjang, pangkas bagian sejarahnya."
 
 
-def potong_tengah(teks: str, batas: int, kepala: int = 400) -> str:
-    """Potong bagian TENGAH, bukan ekornya.
+MAKS_BAGIAN = 8             # rem supaya satu gate tidak membanjiri chat
 
-    Pertanyaan gate disusun dengan urutan: baris pembuka, lalu bahan rujukan
-    (silabus, ringkasan dokumen), lalu KESENJANGAN — hal yang benar-benar harus
-    diputuskan manusia. Memotong dari depan seperti `teks[:batas]` membuang
-    justru bagian terakhir itu, sehingga yang sampai ke Telegram hanya bahan
-    rujukan dan pemilik proyek tidak pernah melihat pertanyaannya.
+
+def _muat(teks: str, batas: int) -> int:
+    """Panjang awalan terpanjang yang setelah di-escape masih muat `batas`.
+
+    Dicari pada teks MENTAH, bukan hasil escape: memotong hasil escape bisa
+    membelah entitas seperti `&amp;` di tengah, dan Telegram menolak pesannya.
     """
-    if len(teks) <= batas:
-        return teks
-    tanda = "\n\n[ bagian tengah dipotong — teks penuh ada di dashboard ]\n\n"
-    ekor = batas - len(tanda) - kepala
-    if ekor <= 0:                      # batas terlalu sempit: ekor yang menang
-        return teks[-batas:]
-    return teks[:kepala] + tanda + teks[-ekor:]
+    if len(esc_html(teks)) <= batas:
+        return len(teks)
+    rendah, tinggi = 0, len(teks)
+    while rendah < tinggi:
+        tengah = (rendah + tinggi + 1) // 2
+        if len(esc_html(teks[:tengah])) <= batas:
+            rendah = tengah
+        else:
+            tinggi = tengah - 1
+    return max(rendah, 1)
+
+
+def bagi_pesan(teks: str, batas: int) -> list[str]:
+    """Bagi teks menjadi beberapa pesan yang masing-masing muat `batas`.
+
+    Dipotong di pergantian baris supaya blok tidak terbelah di tengah kalimat.
+    Baris tunggal yang lebih panjang dari satu pesan tetap dipotong paksa.
+    """
+    potongan: list[str] = []
+    kini = ""
+    for baris in teks.splitlines(keepends=True):
+        while len(esc_html(baris)) > batas:
+            if kini:
+                potongan.append(kini)
+                kini = ""
+            pas = _muat(baris, batas)
+            potongan.append(baris[:pas])
+            baris = baris[pas:]
+        if kini and len(esc_html(kini + baris)) > batas:
+            potongan.append(kini)
+            kini = baris
+        else:
+            kini += baris
+    if kini.strip():
+        potongan.append(kini)
+    if not potongan:
+        return [teks]
+    if len(potongan) > MAKS_BAGIAN:
+        # Bagian awal dan bagian AKHIR yang dipertahankan: KESENJANGAN —
+        # hal yang harus diputuskan manusia — selalu ada di ujung pertanyaan.
+        buang = len(potongan) - MAKS_BAGIAN + 1
+        potongan = (potongan[:MAKS_BAGIAN - 2]
+                    + [f"[ {buang} bagian di tengah dilewati — "
+                       f"teks penuh ada di dashboard ]"]
+                    + potongan[-1:])
+    return potongan
 
 
 def minta_masukan(label: str = ""):
@@ -409,16 +448,21 @@ async def ask(question: str, label: str, files: list | None = None) -> str:
             f"<code>⏹ {GATE_BERHENTI}</code> — pipeline berhenti, dokumen tetap tersimpan\n"
             f"<code>✍ {GATE_MASUKAN}</code> — dokumen direvisi sesuai masukanmu\n"
             "\n<i>Masukan bisa juga langsung: balas pesan ini dengan teks.</i>")
-    # Escape HTML memanjangkan teks (& menjadi &amp;), jadi panjang akhir tidak
-    # bisa dihitung dari panjang mentahnya. Kecilkan jatah pertanyaan sampai
-    # pesan utuh muat — supaya daftar pilihan di ekor tidak pernah ikut terpotong.
-    for jatah in (3400, 2800, 2200, 1600, 1000, 500):
-        teks = form(f"⏸ Menunggu keputusan — {label}", baris,
-                    potong_tengah(question, jatah)) + ekor
-        if len(teks) <= BATAS_PESAN:
-            break
-    tg_send(teks, tombol=[[("✅ " + GATE_SETUJU, "y"), ("⏹ " + GATE_BERHENTI, "q")],
-                          [("✍ " + GATE_MASUKAN, "masukan")]], html=True)
+    kepala = form(f"⏸ Menunggu keputusan — {label}", baris)
+    # Batas Telegram berlaku per pesan, bukan per gate. Pertanyaan panjang
+    # karena itu dikirim berurutan alih-alih dipotong: memotongnya berarti
+    # pemilik proyek memutuskan tanpa melihat sebagian bahannya.
+    jatah = BATAS_PESAN - max(len(kepala), len(ekor)) - 60
+    bagian = bagi_pesan(question, jatah)
+    n = len(bagian)
+    for i, isi in enumerate(bagian, 1):
+        awal = kepala if i == 1 else f"<b>({label} — lanjutan {i}/{n})</b>"
+        # Tombol hanya di pesan terakhir: ia yang paling bawah di chat, dan
+        # menjawab dari potongan tengah berarti menjawab sebelum selesai membaca.
+        tg_send(awal + "\n\n" + esc_html(isi).strip() + (ekor if i == n else ""),
+                tombol=[[("✅ " + GATE_SETUJU, "y"), ("⏹ " + GATE_BERHENTI, "q")],
+                        [("✍ " + GATE_MASUKAN, "masukan")]] if i == n else None,
+                html=True)
 
     if not _stdin_started:
         threading.Thread(target=_stdin_reader, daemon=True).start()
