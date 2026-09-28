@@ -230,8 +230,8 @@ def bagi_pesan(teks: str, batas: int) -> list[str]:
         # hal yang harus diputuskan manusia — selalu ada di ujung pertanyaan.
         buang = len(potongan) - MAKS_BAGIAN + 1
         potongan = (potongan[:MAKS_BAGIAN - 2]
-                    + [f"[ {buang} bagian di tengah dilewati — "
-                       f"teks penuh ada di dashboard ]"]
+                    + [f"[ {buang} bagian di tengah dilewati — teks penuhnya ada "
+                       f"di berkas yang dilampirkan di atas, dan di dashboard ]"]
                     + potongan[-1:])
     return potongan
 

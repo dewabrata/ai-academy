@@ -187,17 +187,3 @@ def siapkan(teks: str, asli: Path | None, project: str | None) -> tuple[Path, st
         if salinan.resolve() != asli.resolve():
             shutil.copy2(asli, salinan)
     return ws, nama
-
-
-def ringkas(teks: str, baris: int = 25) -> str:
-    """Potongan awal silabus untuk ditampilkan di gate pertama.
-
-    Ini yang membuat ekstraksi PDF/DOCX yang berantakan tertangkap sebelum biaya
-    produksi keluar: Bos melihat teks yang benar-benar dibaca peran, bukan
-    berkas aslinya.
-    """
-    isi = teks.splitlines()
-    potong = "\n".join(isi[:baris])
-    if len(isi) > baris:
-        potong += f"\n... (+{len(isi) - baris} baris lagi)"
-    return potong

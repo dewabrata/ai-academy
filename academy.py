@@ -1473,12 +1473,22 @@ async def pipeline(ws: Path, project: str, teks_silabus: str, mulai: str, pilot_
         )
         # Teks silabus yang benar-benar dibaca peran ditampilkan di gate ini.
         # Ini yang membuat ekstraksi PDF/DOCX yang berantakan tertangkap sebelum
-        # biaya produksi keluar.
+        # biaya produksi keluar. Ditampilkan UTUH: kerusakan ekstraksi justru
+        # paling sering muncul di tabel dan bagian bawah dokumen, jadi memotong
+        # di baris ke-25 membuang tepat bagian yang perlu diperiksa.
         cuplikan = ("Teks silabus yang dibaca peran (dari sumber/silabus.txt):\n"
-                    "-----\n" + silabus_mod.ringkas(teks_silabus) + "\n-----")
+                    "-----\n" + teks_silabus.strip() + "\n-----")
+        # Berkas sumbernya ikut dilampirkan: teks persis yang dibaca peran, tanpa
+        # lewat escape HTML, dan bisa digulir tanpa membanjiri chat. Yang
+        # dilampirkan adalah silabus.txt hasil ekstraksi — BUKAN berkas asli
+        # .pdf/.docx di sebelahnya, karena justru hasil ekstraksinya yang perlu
+        # diperiksa benar atau tidak.
+        sumber = ws / "sumber" / "silabus.txt"
         await doc_with_gate("KURIKULUM", "KURIKULUM", prompt, roles.KURIKULUM, ws,
                             budget("KURIKULUM", 2.0),
-                            lampiran=[docs / "GLOSARIUM.md"], tambahan_gate=cuplikan)
+                            lampiran=([sumber] if sumber.exists() else [])
+                                     + [docs / "GLOSARIUM.md"],
+                            tambahan_gate=cuplikan)
         await cek_plafon_proyek()
 
     # --- Tahap 2: Blueprint -> gate --------------------------------------
