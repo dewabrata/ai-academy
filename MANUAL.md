@@ -242,7 +242,10 @@ Tiga kanal, yang tiba lebih dulu yang dipakai:
 1. **Terminal** — ketik langsung.
 2. **Dashboard** — tombol Setuju/Berhenti atau kotak masukan. Ditulis ke
    `docs/GATE_JAWAB.txt` dan dibaca `monitor.ask`.
-3. **Telegram** — balas pesan gate.
+3. **Telegram** — tiga tombol yang sama dengan dashboard: **Setuju, lanjutkan**,
+   **Berhenti**, dan **Tulis masukan**. Tombol ketiga membuka kolom isian
+   (ForceReply) dengan contoh di dalamnya; masukan juga bisa dikirim langsung
+   dengan membalas pesan gate.
 
 | Jawaban | Akibat |
 |---|---|

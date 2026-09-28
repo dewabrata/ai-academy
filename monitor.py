@@ -135,12 +135,17 @@ def form(judul: str, baris: list[tuple[str, object]], catatan: str = "") -> str:
     return teks
 
 
-def tg_send(text: str, tombol: list | None = None, html: bool = False):
+def tg_send(text: str, tombol: list | None = None, html: bool = False,
+            paksa_balas: str | None = None):
     """Kirim pesan. `tombol` = [[(label, data), ...], ...] menjadi tombol inline.
 
     Tombol dipakai untuk gate: menekan tombol jauh lebih kecil kemungkinan
     salahnya daripada mengetik 'y' di ponsel, dan teks yang salah ketik akan
     diperlakukan sebagai masukan revisi.
+
+    `paksa_balas` membuka kolom isian Telegram dengan contoh di dalamnya. Itu
+    padanan terdekat dari kotak masukan di dashboard; tanpa ini, menulis masukan
+    hanya disebut di satu baris petunjuk dan mudah terlewat.
     """
     tok, chat = _tg_cfg()
     if not tok:
@@ -151,11 +156,32 @@ def tg_send(text: str, tombol: list | None = None, html: bool = False):
     if tombol:
         kirim["reply_markup"] = json.dumps({"inline_keyboard": [
             [{"text": t, "callback_data": d} for t, d in baris] for baris in tombol]})
+    elif paksa_balas is not None:
+        # input_field_placeholder dibatasi 64 karakter oleh Telegram.
+        kirim["reply_markup"] = json.dumps({
+            "force_reply": True, "input_field_placeholder": paksa_balas[:64]})
     try:
         data = urllib.parse.urlencode(kirim).encode()
         urllib.request.urlopen(f"https://api.telegram.org/bot{tok}/sendMessage", data, timeout=10)
     except Exception as e:  # notifikasi tidak boleh menjatuhkan pipeline
         print(f"  (telegram gagal: {e})")
+
+
+# Kata-kata pilihan gate sengaja sama dengan dashboard (kartuGate di
+# dashboard.py). Pemilik proyek menjawab gate yang sama dari dua tempat; kalau
+# pilihannya berbeda nama, ia harus menerjemahkan sendiri mana yang mana.
+GATE_SETUJU = "Setuju, lanjutkan"
+GATE_BERHENTI = "Berhenti"
+GATE_MASUKAN = "Tulis masukan"
+GATE_CONTOH = "Contoh: point 3 terlalu panjang, pangkas bagian sejarahnya."
+
+
+def minta_masukan(label: str = ""):
+    """Buka kolom isian masukan di Telegram, setara kotak teks di dashboard."""
+    judul = f"✍ Masukan untuk {label}" if label else "✍ Masukan"
+    tg_send(form(judul, [], "Balas pesan ini dengan masukan revisi, atau dengan "
+                            "jawaban atas pertanyaan di gate.\n\n" + GATE_CONTOH),
+            html=True, paksa_balas=GATE_CONTOH)
 
 
 def _tg_jawab_tombol(cb_id: str, teks: str):
@@ -227,6 +253,12 @@ def _tg_poll() -> str | None:
                 cb = u.get("callback_query") or {}
                 if cb and str((cb.get("message") or {}).get("chat", {}).get("id")) == str(chat):
                     data = (cb.get("data") or "").strip()
+                    if data == "masukan":
+                        # Bukan jawaban: ini permintaan membuka kolom isian.
+                        # Gate tetap menunggu sampai teksnya benar-benar dikirim.
+                        _tg_jawab_tombol(cb.get("id", ""), "Tulis masukanmu")
+                        minta_masukan((_status.get("gate") or {}).get("label") or "")
+                        continue
                     _tg_jawab_tombol(cb.get("id", ""),
                                      "Disetujui" if data == "y" else "Dihentikan")
                     if data in ("y", "q"):
@@ -266,13 +298,14 @@ def _balas_perintah(teks: str) -> bool:
         ], "Pipeline menunggu jawabanmu. Balas: y / q / teks masukan."
            if g.get("label") else "Tidak ada gate yang menunggu."), html=True)
     elif cmd in ("help", "bantuan", "start"):
-        tg_send("Pipeline sedang menunggu jawaban gate. Yang dikenali sekarang:\n"
-                "  y = setuju dan lanjutkan\n"
-                "  q = berhenti (pekerjaan tetap tersimpan)\n"
-                "  teks lain = masukan revisi\n"
-                "  /status = keadaan pipeline\n\n"
-                "Perintah lain (/daftar, /lanjut, /stop) hanya berfungsi saat tidak ada "
-                "pipeline berjalan.")
+        tg_send(form("Menjawab gate", [
+            (f"✅ {GATE_SETUJU}", "tombol, atau ketik y"),
+            (f"⏹ {GATE_BERHENTI}", "tombol, atau ketik q"),
+            (f"✍ {GATE_MASUKAN}", "tombol, atau langsung ketik masukannya"),
+            ("/status", "keadaan pipeline"),
+        ], "Pilihannya sama persis dengan yang ada di dashboard.\n\n"
+           "Perintah lain (/daftar, /lanjut, /stop) hanya berfungsi saat tidak ada "
+           "pipeline berjalan."), html=True)
     else:
         tg_send(f"Perintah '{cmd}' tidak berlaku saat gate terbuka, dan TIDAK dipakai "
                 f"sebagai jawaban. Balas y / q / teks masukan, atau /status.")
@@ -349,9 +382,14 @@ async def ask(question: str, label: str, files: list | None = None) -> str:
         ("Point", (f"{_status.get('point')} · {_status.get('point_judul', '')}"[:60]
                    if _status.get("point") else None)),
         ("Biaya", f"${(c.get('total') or 0):.2f}"),
-    ], question[:2600]) + "\n\n<i>Tekan tombol, atau balas teks untuk memberi masukan "
-       "revisi.</i>",
-        tombol=[[("✅ Setuju, lanjutkan", "y"), ("⏹ Berhenti", "q")]], html=True)
+    ], question[:2600])
+        + "\n\n<b>Pilihan Anda</b>\n"
+          f"<code>✅ {GATE_SETUJU}</code> — lanjut ke tahap berikutnya\n"
+          f"<code>⏹ {GATE_BERHENTI}</code> — pipeline berhenti, dokumen tetap tersimpan\n"
+          f"<code>✍ {GATE_MASUKAN}</code> — dokumen direvisi sesuai masukanmu\n"
+          "\n<i>Masukan bisa juga langsung: balas pesan ini dengan teks.</i>",
+        tombol=[[("✅ " + GATE_SETUJU, "y"), ("⏹ " + GATE_BERHENTI, "q")],
+                [("✍ " + GATE_MASUKAN, "masukan")]], html=True)
 
     if not _stdin_started:
         threading.Thread(target=_stdin_reader, daemon=True).start()
