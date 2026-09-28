@@ -113,6 +113,9 @@ def _tg_cfg():
     return (tok, chat) if tok and chat else (None, None)
 
 
+BATAS_PESAN = 3900          # batas Telegram 4096, disisakan ruang untuk entitas HTML
+
+
 def esc_html(t) -> str:
     """Telegram HTML hanya mengenal beberapa tag; sisanya harus di-escape."""
     return (str(t).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
@@ -150,7 +153,7 @@ def tg_send(text: str, tombol: list | None = None, html: bool = False,
     tok, chat = _tg_cfg()
     if not tok:
         return
-    kirim = {"chat_id": chat, "text": text[:3900]}
+    kirim = {"chat_id": chat, "text": text[:BATAS_PESAN]}
     if html:
         kirim["parse_mode"] = "HTML"
     if tombol:
@@ -174,6 +177,24 @@ GATE_SETUJU = "Setuju, lanjutkan"
 GATE_BERHENTI = "Berhenti"
 GATE_MASUKAN = "Tulis masukan"
 GATE_CONTOH = "Contoh: point 3 terlalu panjang, pangkas bagian sejarahnya."
+
+
+def potong_tengah(teks: str, batas: int, kepala: int = 400) -> str:
+    """Potong bagian TENGAH, bukan ekornya.
+
+    Pertanyaan gate disusun dengan urutan: baris pembuka, lalu bahan rujukan
+    (silabus, ringkasan dokumen), lalu KESENJANGAN — hal yang benar-benar harus
+    diputuskan manusia. Memotong dari depan seperti `teks[:batas]` membuang
+    justru bagian terakhir itu, sehingga yang sampai ke Telegram hanya bahan
+    rujukan dan pemilik proyek tidak pernah melihat pertanyaannya.
+    """
+    if len(teks) <= batas:
+        return teks
+    tanda = "\n\n[ bagian tengah dipotong — teks penuh ada di dashboard ]\n\n"
+    ekor = batas - len(tanda) - kepala
+    if ekor <= 0:                      # batas terlalu sempit: ekor yang menang
+        return teks[-batas:]
+    return teks[:kepala] + tanda + teks[-ekor:]
 
 
 def minta_masukan(label: str = ""):
@@ -376,20 +397,28 @@ async def ask(question: str, label: str, files: list | None = None) -> str:
     for f in files or []:
         tg_doc(f, f"{label}: {Path(f).name} - baca dulu, lalu jawab pertanyaan di bawah.")
     c = _status.get("cost") or {}
-    tg_send(form(f"⏸ Menunggu keputusan — {label}", [
+    baris = [
         ("Proyek", _status.get("project") or "-"),
         ("Tahap", _status.get("current") or "-"),
         ("Point", (f"{_status.get('point')} · {_status.get('point_judul', '')}"[:60]
                    if _status.get("point") else None)),
         ("Biaya", f"${(c.get('total') or 0):.2f}"),
-    ], question[:2600])
-        + "\n\n<b>Pilihan Anda</b>\n"
-          f"<code>✅ {GATE_SETUJU}</code> — lanjut ke tahap berikutnya\n"
-          f"<code>⏹ {GATE_BERHENTI}</code> — pipeline berhenti, dokumen tetap tersimpan\n"
-          f"<code>✍ {GATE_MASUKAN}</code> — dokumen direvisi sesuai masukanmu\n"
-          "\n<i>Masukan bisa juga langsung: balas pesan ini dengan teks.</i>",
-        tombol=[[("✅ " + GATE_SETUJU, "y"), ("⏹ " + GATE_BERHENTI, "q")],
-                [("✍ " + GATE_MASUKAN, "masukan")]], html=True)
+    ]
+    ekor = ("\n\n<b>Pilihan Anda</b>\n"
+            f"<code>✅ {GATE_SETUJU}</code> — lanjut ke tahap berikutnya\n"
+            f"<code>⏹ {GATE_BERHENTI}</code> — pipeline berhenti, dokumen tetap tersimpan\n"
+            f"<code>✍ {GATE_MASUKAN}</code> — dokumen direvisi sesuai masukanmu\n"
+            "\n<i>Masukan bisa juga langsung: balas pesan ini dengan teks.</i>")
+    # Escape HTML memanjangkan teks (& menjadi &amp;), jadi panjang akhir tidak
+    # bisa dihitung dari panjang mentahnya. Kecilkan jatah pertanyaan sampai
+    # pesan utuh muat — supaya daftar pilihan di ekor tidak pernah ikut terpotong.
+    for jatah in (3400, 2800, 2200, 1600, 1000, 500):
+        teks = form(f"⏸ Menunggu keputusan — {label}", baris,
+                    potong_tengah(question, jatah)) + ekor
+        if len(teks) <= BATAS_PESAN:
+            break
+    tg_send(teks, tombol=[[("✅ " + GATE_SETUJU, "y"), ("⏹ " + GATE_BERHENTI, "q")],
+                          [("✍ " + GATE_MASUKAN, "masukan")]], html=True)
 
     if not _stdin_started:
         threading.Thread(target=_stdin_reader, daemon=True).start()
