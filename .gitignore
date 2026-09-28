@@ -13,3 +13,4 @@ workspace/
 .claude/settings.local.json
 status.json
 events.jsonl
+logs/

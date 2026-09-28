@@ -1,0 +1,23 @@
+# Berkas yang dijalankan di Linux HARUS berakhiran LF. Kalau Git mengubahnya
+# jadi CRLF di Windows lalu ikut ter-commit, bash menolaknya dengan pesan yang
+# menyesatkan: "bash\r: No such file or directory".
+*.sh            text eol=lf
+*.service       text eol=lf
+
+# PowerShell aman dengan keduanya, tetapi CRLF adalah kebiasaan Windows.
+*.ps1           text eol=crlf
+
+# Sumber dan dokumen: normalkan di repositori, biarkan checkout sesuai platform.
+*.py            text
+*.md            text
+*.json          text
+*.txt           text
+*.yaml          text
+*.yml           text
+
+# Biner: jangan disentuh sama sekali.
+*.docx          binary
+*.pptx          binary
+*.png           binary
+*.jpg           binary
+*.pdf           binary

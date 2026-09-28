@@ -312,9 +312,23 @@ python -c "import exporter,pathlib; exporter.gabung_handbook(pathlib.Path('works
 **Langkah pertama selalu sama — tanya keadaannya, jangan menebak:**
 
 ```bash
+./academyctl.sh status          # dashboard + semua proyek sekaligus
+.\academyctl.ps1 status         # Windows
+
 python control.py status                       # semua proyek
 python control.py status <proyek>              # + saran langkah berikutnya
 ```
+
+Bedakan dua hal yang sering tertukar:
+
+- **Dashboard mati** — panelnya tidak bisa dibuka, tetapi pipeline yang sudah
+  jalan tetap bekerja, karena ia proses terpisah dengan sesi sendiri.
+  Pemulihannya `./academyctl.sh start` (atau `systemctl start ai-academy`).
+- **Pipeline berhenti** — materi tidak bertambah. Itu yang dibahas tabel di
+  bawah, dan dashboard tidak ada hubungannya.
+
+Menghentikan dashboard tidak pernah menghentikan pipeline. Itu disengaja: satu
+pertemuan bisa berjam-jam dan puluhan dolar.
 
 Perintah itu menyebut satu dari empat keadaan, dan langsung memberi perintah
 yang perlu dijalankan.

@@ -233,6 +233,50 @@ Rinciannya di [MANUAL.md §9](MANUAL.md).
 python dashboard.py     # http://127.0.0.1:8770
 ```
 
+Untuk pemakaian sehari-hari dan di server, pakai skrip kendali — ia menjalankan
+dashboard di latar belakang, menyimpan PID-nya, dan mengumpulkan lognya:
+
+```bash
+./academyctl.sh start          # Linux / macOS
+.\academyctl.ps1 start         # Windows PowerShell
+```
+
+| Perintah | Yang dilakukan |
+|---|---|
+| `start` | Jalankan dashboard terlepas dari terminal. Menunggu sampai portnya benar-benar menerima koneksi, jadi `.env` yang salah ketahuan langsung |
+| `stop` | Hentikan dashboard. **Pipeline yang sedang jalan tidak ikut berhenti** |
+| `restart` | `stop` lalu `start` |
+| `status` | Keadaan dashboard, port, dan pipeline tiap proyek |
+| `log` | Log dashboard. `-f` / `-Ikuti` untuk mengikuti |
+| `reset` | Bersihkan keadaan runtime — **hanya untuk pengembangan** |
+
+`stop` sengaja tidak menyentuh pipeline: satu pertemuan bisa berjam-jam dan
+puluhan dolar, jadi menutup panel tidak boleh membuangnya. Hentikan pipeline
+dari dalam dashboard atau dengan `python control.py stop <proyek>`.
+
+`reset` menolak jalan kecuali `AI_ACADEMY_ENV=dev`, atau diberi `--yakin` /
+`-Yakin`. Ia menghapus kunci, log, `__pycache__`, `status.json`, dan
+`events.jsonl`. Isi `workspace/` **tidak disentuh** kecuali diberi `--materi` /
+`-Materi`, dan bahkan itu pun mengarsipkan ke `workspace/.arsip/`, bukan
+menghapus.
+
+Di server Linux, lebih baik pakai systemd daripada skrip ini:
+
+```bash
+sudo cp deploy/ai-academy.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now ai-academy
+journalctl -u ai-academy -f
+```
+
+Unit-nya memakai `KillMode=process` supaya pipeline tidak ikut mati saat
+dashboard di-restart. Dashboard tetap terikat `127.0.0.1`; akses dari luar lewat
+SSH tunnel, bukan dengan membuka port:
+
+```bash
+ssh -L 8770:127.0.0.1:8770 user@server
+```
+
 Isi dashboard:
 
 | Bagian | Isi |

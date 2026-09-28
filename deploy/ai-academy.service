@@ -1,0 +1,59 @@
+# Unit systemd untuk dashboard AI Academy.
+#
+# Pasang:
+#   sudo cp deploy/ai-academy.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now ai-academy
+#
+# Pakai:
+#   sudo systemctl start|stop|restart|status ai-academy
+#   journalctl -u ai-academy -f
+#
+# Ganti User, Group, dan WorkingDirectory sesuai mesinmu.
+#
+# Dashboard tetap terikat 127.0.0.1 secara bawaan dan itu disengaja: panel ini
+# menjalankan pipeline, dan peran Tugas di dalamnya punya akses Bash. Akses dari
+# luar lewat SSH tunnel, bukan dengan membuka port:
+#   ssh -L 8770:127.0.0.1:8770 user@server
+# Kalau memang harus dibuka ke jaringan, isi DASHBOARD_PASS di .env lebih dulu —
+# tanpa itu dashboard menolak jalan pada alamat non-lokal.
+
+[Unit]
+Description=AI Academy dashboard
+Documentation=https://github.com/dewabrata/ai-academy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=aiacademy
+Group=aiacademy
+WorkingDirectory=/opt/ai-academy
+EnvironmentFile=/opt/ai-academy/.env
+ExecStart=/opt/ai-academy/.venv/bin/python -u dashboard.py
+
+# Dashboard hanya induk yang menjalankan pipeline; pipeline sengaja dilepas ke
+# sesi sendiri supaya tidak ikut mati. KillMode=process menjaga agar systemd
+# juga tidak membunuhnya saat dashboard di-restart — satu pertemuan bisa
+# berjam-jam dan puluhan dolar.
+KillMode=process
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+Restart=on-failure
+RestartSec=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ai-academy
+
+# Pengetatan secukupnya. Tidak lebih ketat dari ini karena peran Tugas memang
+# perlu menjalankan lab kode peserta, dan ProtectSystem=strict akan mematahkannya.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/opt/ai-academy
+
+[Install]
+WantedBy=multi-user.target
