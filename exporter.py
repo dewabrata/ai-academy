@@ -35,19 +35,115 @@ _INLINE = [
     (re.compile(r"\[(.+?)\]\((.+?)\)"), r"\1 (\2)"),
 ]
 
+# Satu pola untuk semua penanda inline sekaligus, supaya urutannya di dalam
+# kalimat tetap terjaga saat dipecah menjadi run.
+_POTONG = re.compile(
+    r"\*\*(?P<tebal>.+?)\*\*"
+    r"|(?<!\w)\*(?P<miring>.+?)\*(?!\w)"
+    r"|`(?P<kode>.+?)`"
+    r"|\[(?P<teks>.+?)\]\((?P<url>.+?)\)")
+
+KODE_FONT = "Consolas"
+KODE_LATAR = "F3F4F6"          # abu sangat muda, tetap terbaca saat dicetak
+KODE_GARIS = "9CA3AF"
+
 
 def _bersih(teks: str) -> str:
-    """Buang penanda inline Markdown. python-docx tidak mengurai Markdown, jadi
-    tanpa ini bintang dan backtick muncul apa adanya di dokumen."""
+    """Buang penanda inline Markdown. Dipakai di tempat yang hanya menerima
+    teks polos: judul, butir slide, dan catatan pengajar."""
     for pola, ganti in _INLINE:
         teks = pola.sub(ganti, teks)
     return teks
 
 
+def _latar(el, warna: str):
+    """Pasang <w:shd> pada elemen paragraf atau run."""
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+
+    shd = OxmlElement("w:shd")
+    shd.set(qn("w:val"), "clear")
+    shd.set(qn("w:color"), "auto")
+    shd.set(qn("w:fill"), warna)
+    el.append(shd)
+
+
+def _gaya_kode(doc):
+    """Style paragraf blok kode: font lebar tetap, latar abu, garis tepi kiri.
+
+    Tanpa latar dan garis, blok kode di Word hanya berbeda fontnya — pembaca
+    tidak melihatnya sebagai blok, dan itulah keluhan yang memicu perubahan ini.
+    """
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+    from docx.shared import Pt, Inches
+
+    gaya = doc.styles.add_style("KodeLab", 1)   # 1 = WD_STYLE_TYPE.PARAGRAPH
+    gaya.font.name = KODE_FONT
+    gaya.font.size = Pt(9)
+    pf = gaya.paragraph_format
+    pf.left_indent = Inches(0.22)
+    pf.right_indent = Inches(0.1)
+    pf.space_before = Pt(6)
+    pf.space_after = Pt(8)
+    pf.keep_together = True
+
+    # Word mengabaikan font.name untuk sebagian skrip kalau rFonts tidak diisi.
+    rpr = gaya.element.get_or_add_rPr()
+    rfonts = rpr.get_or_add_rFonts()
+    for atribut in ("w:ascii", "w:hAnsi", "w:cs"):
+        rfonts.set(qn(atribut), KODE_FONT)
+
+    ppr = gaya.element.get_or_add_pPr()
+    _latar(ppr, KODE_LATAR)
+    tepi = OxmlElement("w:pBdr")
+    kiri = OxmlElement("w:left")
+    kiri.set(qn("w:val"), "single")
+    kiri.set(qn("w:sz"), "18")
+    kiri.set(qn("w:space"), "8")
+    kiri.set(qn("w:color"), KODE_GARIS)
+    tepi.append(kiri)
+    ppr.append(tepi)
+    return gaya
+
+
+def _tulis_inline(par, teks: str):
+    """Isi paragraf dengan run yang mempertahankan tebal, miring, dan kode.
+
+    Inline code jadi run berfont lebar tetap. Sebelumnya backtick-nya dibuang
+    tanpa pengganti, sehingga nama berkas dan perintah di tengah kalimat tidak
+    bisa dibedakan dari kata biasa.
+    """
+    from docx.oxml.ns import qn
+    from docx.shared import Pt
+
+    posisi = 0
+    for m in _POTONG.finditer(teks):
+        if m.start() > posisi:
+            par.add_run(teks[posisi:m.start()])
+        if m.group("tebal") is not None:
+            par.add_run(m.group("tebal")).bold = True
+        elif m.group("miring") is not None:
+            par.add_run(m.group("miring")).italic = True
+        elif m.group("kode") is not None:
+            r = par.add_run(m.group("kode"))
+            r.font.name = KODE_FONT
+            r.font.size = Pt(9.5)
+            rfonts = r._element.get_or_add_rPr().get_or_add_rFonts()
+            for atribut in ("w:ascii", "w:hAnsi", "w:cs"):
+                rfonts.set(qn(atribut), KODE_FONT)
+            _latar(r._element.get_or_add_rPr(), KODE_LATAR)
+        else:
+            par.add_run(f"{m.group('teks')} ({m.group('url')})")
+        posisi = m.end()
+    if posisi < len(teks):
+        par.add_run(teks[posisi:])
+    return par
+
+
 def md_ke_docx(md: Path, keluar: Path) -> Path:
     try:
         from docx import Document
-        from docx.shared import Pt
     except ImportError as e:
         raise ExportError("Butuh python-docx: pip install -r requirements.txt") from e
 
@@ -58,15 +154,16 @@ def md_ke_docx(md: Path, keluar: Path) -> Path:
         raise ExportError(f"Sumber kosong: {md}")
 
     doc = Document()
-    # Blok kode perlu font lebar tetap, dan style bawaan 'No Spacing' tidak
-    # menyediakannya — jadi style sendiri, sekali per dokumen.
-    kode_style = doc.styles.add_style("KodeLab", 1)  # 1 = WD_STYLE_TYPE.PARAGRAPH
-    kode_style.font.name = "Consolas"
-    kode_style.font.size = Pt(9)
+    _gaya_kode(doc)
 
     dalam_kode = False
     baris_kode: list[str] = []
     ada_isi = False
+    # Markdown membungkus paragraf di ~80 kolom. Tanpa penyangga ini tiap baris
+    # sumber menjadi paragraf Word tersendiri, sehingga satu paragraf utuh
+    # tampil terpotong-potong dengan jarak di antaranya.
+    teks_buf: list[str] = []
+    gaya_buf: str | None = None
 
     def tutup_kode():
         nonlocal baris_kode
@@ -74,10 +171,20 @@ def md_ke_docx(md: Path, keluar: Path) -> Path:
             doc.add_paragraph("\n".join(baris_kode), style="KodeLab")
             baris_kode = []
 
+    def tutup_teks():
+        nonlocal teks_buf, gaya_buf
+        if teks_buf:
+            par = doc.add_paragraph(style=gaya_buf) if gaya_buf else doc.add_paragraph()
+            _tulis_inline(par, " ".join(teks_buf))
+            teks_buf = []
+        gaya_buf = None
+
     for baris in isi.splitlines():
         if baris.lstrip().startswith("```"):
             if dalam_kode:
                 tutup_kode()
+            else:
+                tutup_teks()
             dalam_kode = not dalam_kode
             continue
         if dalam_kode:
@@ -87,10 +194,12 @@ def md_ke_docx(md: Path, keluar: Path) -> Path:
 
         b = baris.rstrip()
         if not b.strip():
+            tutup_teks()
             continue
 
         m = re.match(r"^(#{1,6})\s+(.*)", b)
         if m:
+            tutup_teks()
             doc.add_heading(_bersih(m.group(2)), level=min(len(m.group(1)), 4))
             ada_isi = True
             continue
@@ -98,28 +207,40 @@ def md_ke_docx(md: Path, keluar: Path) -> Path:
         # jadi tabel Word akan memaksa menebak lebar kolom, dan tabel di modul
         # umumnya hanya dua-tiga kolom pendek.
         if b.lstrip().startswith("|"):
+            tutup_teks()
             if re.fullmatch(r"[\s|:-]+", b):
                 continue          # baris pemisah header tabel
-            doc.add_paragraph(_bersih(b.strip().strip("|").replace("|", " · ")))
+            _tulis_inline(doc.add_paragraph(),
+                          b.strip().strip("|").replace("|", " \u00b7 "))
             ada_isi = True
             continue
         m = re.match(r"^\s*[-*+]\s+(.*)", b)
         if m:
-            doc.add_paragraph(_bersih(m.group(1)), style="List Bullet")
+            tutup_teks()
+            teks_buf, gaya_buf = [m.group(1)], "List Bullet"
             ada_isi = True
             continue
         m = re.match(r"^\s*(\d+)[.)]\s+(.*)", b)
         if m:
-            doc.add_paragraph(_bersih(m.group(2)), style="List Number")
+            tutup_teks()
+            teks_buf, gaya_buf = [m.group(2)], "List Number"
             ada_isi = True
             continue
         if b.lstrip().startswith(">"):
-            doc.add_paragraph(_bersih(b.lstrip().lstrip(">").strip()), style="Intense Quote")
+            isi_kutipan = b.lstrip().lstrip(">").strip()
+            if gaya_buf != "Intense Quote":
+                tutup_teks()
+                gaya_buf = "Intense Quote"
+            if isi_kutipan:
+                teks_buf.append(isi_kutipan)
             ada_isi = True
             continue
-        doc.add_paragraph(_bersih(b))
+        # Baris biasa: lanjutan paragraf, butir, atau kutipan yang sedang
+        # dibangun — atau awal paragraf baru kalau tidak ada yang terbuka.
+        teks_buf.append(b.strip())
         ada_isi = True
 
+    tutup_teks()
     tutup_kode()
     if not ada_isi:
         raise ExportError(f"Tidak ada isi yang bisa dikonversi dari {md.name}")

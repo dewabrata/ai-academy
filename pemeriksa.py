@@ -103,6 +103,117 @@ DI_KELAS = re.compile(r"^\s*[-*]\s*Di kelas\s*\((\d+)\s*menit\)\s*:?(.*)$", re.I
 MENIT_PER_LANGKAH = 2          # patokan kasar: ketik, tunggu keluaran, periksa
 
 
+# ---------------------------------------------------------------------------
+# Bentuk tulisan point
+# ---------------------------------------------------------------------------
+# Kontrak keterbacaan di prompts/writer.md. Diperiksa mesin karena keempatnya
+# mekanis: tidak butuh penilaian, dan memperbaikinya tidak menghasilkan kalimat
+# baru yang perlu ditelaah ulang.
+#
+# Ambangnya lebih longgar daripada target di prompt (60 kata) supaya yang
+# ditahan hanya yang tidak bisa diperdebatkan. Pada materi pertemuan 1-3 yang
+# ditulis sebelum kontrak ini ada, 90 kata menangkap 15% paragraf.
+MAKS_KATA_PARAGRAF = 90
+
+_AWAL_BUKAN_PARAGRAF = re.compile(r"^\s*(#{1,6}\s|[-*+]\s|\d+[.)]\s|>|\||\s{4,}\S)")
+_RUJUK_BAGIAN_LAIN = re.compile(
+    r"(?:di|pada|ke) pertemuan \d"
+    r"|(?:di|pada) point \d"
+    r"|dibahas (?:di|pada|lebih|nanti)"
+    r"|dipelajari (?:di|pada|penuh|nanti)"
+    r"|akan (?:kita )?(?:lihat|bahas|pelajari) (?:di|pada|nanti)"
+    r"|bagian (?:berikutnya|sebelumnya)"
+    r"|point (?:berikutnya|sebelumnya)", re.I)
+# "**Hasil yang sebenarnya terjadi:** container pertama hidup..." - label tebal
+# panjang di awal paragraf yang sebenarnya menggantikan judul.
+_LABEL_TEBAL = re.compile(r"^\*\*([^*]{12,}?)\*\*\s*\S")
+# "reverse proxy (reverse proxy - komponen yang...)"
+_ISTILAH_ULANG = re.compile(r"\b([A-Za-z][\w-]*(?: [\w-]+){0,2}) \(\1\b", re.I)
+
+
+def _paragraf(teks: str):
+    """Paragraf teks biasa di luar blok kode, judul, daftar, tabel, dan kutipan."""
+    dalam_kode = False
+    kini: list[str] = []
+    for baris in teks.splitlines():
+        if baris.lstrip().startswith("```"):
+            dalam_kode = not dalam_kode
+            if kini:
+                yield " ".join(kini)
+                kini = []
+            continue
+        if dalam_kode:
+            continue
+        if not baris.strip() or _AWAL_BUKAN_PARAGRAF.match(baris):
+            if kini:
+                yield " ".join(kini)
+                kini = []
+            continue
+        kini.append(baris.strip())
+    if kini:
+        yield " ".join(kini)
+
+
+def bentuk_point(teks: str, kelas_ada: bool | None = None) -> list[str]:
+    """Pelanggaran kontrak keterbacaan di satu point, satu baris per jenis.
+
+    Daftar kosong berarti bentuknya sudah sesuai. Contoh disertakan supaya
+    Writer bisa langsung mencari tempatnya, bukan menebak.
+    """
+    langgar: list[str] = []
+
+    tanpa_bahasa = 0
+    dalam = False
+    for baris in teks.splitlines():
+        if baris.lstrip().startswith("```"):
+            if not dalam and not baris.strip().strip("`").strip():
+                tanpa_bahasa += 1
+            dalam = not dalam
+    if tanpa_bahasa:
+        langgar.append(f"{tanpa_bahasa} blok kode tanpa penanda bahasa — "
+                       "beri bahasanya (bash/yaml/json/...), atau `text` untuk "
+                       "keluaran perintah dan teks biasa")
+
+    panjang = [par for par in _paragraf(teks) if len(par.split()) > MAKS_KATA_PARAGRAF]
+    if panjang:
+        langgar.append(f"{len(panjang)} paragraf melebihi {MAKS_KATA_PARAGRAF} kata — "
+                       "pecah jadi satu gagasan per paragraf. Mulai dari: "
+                       f'"{panjang[0][:80]}..."')
+
+    rujuk = list(dict.fromkeys(m.group(0) for m in _RUJUK_BAGIAN_LAIN.finditer(teks)))
+    if rujuk:
+        langgar.append(f"{len(rujuk)} rujukan ke bagian lain — hapus, dan beri "
+                       "definisi satu kalimat kalau istilahnya memang dibutuhkan "
+                       "di sini: " + ", ".join(f'"{x}"' for x in rujuk[:5]))
+
+    label = [par for par in _paragraf(teks) if _LABEL_TEBAL.match(par)]
+    if label:
+        contoh = _LABEL_TEBAL.match(label[0]).group(1)
+        langgar.append(f"{len(label)} label tebal di awal paragraf — ganti judul "
+                       f'`####` yang pendek. Mulai dari: "{contoh[:60]}"')
+
+    ulang = _ISTILAH_ULANG.findall(teks)
+    if ulang:
+        langgar.append(f"{len(ulang)} definisi mengulang nama istilahnya sendiri — "
+                       "tulis sebagai baris `> **Istilah** — arti` di bawah "
+                       f'paragrafnya: "{ulang[0]}"')
+
+    if kelas_ada is False:
+        langgar.append("berkas .kelas.md belum ada — pindahkan jatah menit dan "
+                       "pembagian kelas ke sana, keluarkan dari teks point")
+
+    return langgar
+
+
+def bentuk_berkas_point(point: Path) -> list[str]:
+    """`bentuk_point` untuk satu berkas, sekalian memeriksa pasangan .kelas.md."""
+    if not point.exists():
+        return []
+    kelas = point.with_suffix(".kelas.md")
+    return bentuk_point(point.read_text(encoding="utf-8"), kelas.exists())
+
+
+
 def in_class_point(bagian: str) -> list[dict]:
     """Daftar {point, menit, langkah} dari bagian '### Point' satu pertemuan."""
     hasil: list[dict] = []
@@ -283,6 +394,21 @@ def periksa_pertemuan(ws: Path, p: dict) -> list[dict]:
                         f"{rel}/QUIZ_AIKEN.txt"))
     else:
         h.append(_hasil("quiz AIKEN valid", GAGAL, "QUIZ_AIKEN.txt tidak ada", f"{rel}/QUIZ_AIKEN.txt"))
+
+    # 8b. Bentuk tulisan tiap point terhadap kontrak keterbacaan.
+    # Pelanggaran di sini seharusnya sudah dibereskan sebelum Reviewer dipanggil;
+    # kalau masih muncul di paket, artinya perbaikan otomatisnya tidak berhasil.
+    berkas_pt = sorted((f / "point").glob("point-[0-9][0-9].md"))
+    if not berkas_pt:
+        h.append(_hasil("bentuk tulisan", TAK_BERLAKU, "tidak ada berkas point"))
+    else:
+        rinci = [f"{bp.name}: {x}" for bp in berkas_pt
+                 for x in bentuk_berkas_point(bp)]
+        titik = len({x.split(":")[0] for x in rinci})
+        h.append(_hasil("bentuk tulisan", GAGAL if rinci else LULUS,
+                        (f"{len(rinci)} pelanggaran di {titik} point — "
+                         + "; ".join(x[:110] for x in rinci[:3])) if rinci else "",
+                        f"{rel}/point"))
 
     # 9. Alokasi menit per point vs langkah yang dikerjakan di kelas
     bagian = bagian_blueprint(blueprint, no)

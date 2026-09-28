@@ -879,7 +879,9 @@ def prompt_writer(ws: Path, p: dict, pt: dict, r: int, st: dict) -> str:
             f"Baca lebih dulu:\n{rujukan_umum(ws, p)}{rujukan_sebelumnya(ws, p, k)}\n"
             f"Tulis point ke {_rel(ws, berkas_point(f, k))}, asumsi dan pertanyaan ke "
             f"{_rel(ws, berkas_catatan(f, k))}, dan keputusan yang terpaksa kamu ambil "
-            f"sendiri ke {_rel(ws, berkas_point(f, k)).replace('.md', '.konvensi.md')}.\n\n")
+            f"sendiri ke {_rel(ws, berkas_point(f, k)).replace('.md', '.konvensi.md')}, "
+            f"dan jatah menit kelas ke "
+            f"{_rel(ws, berkas_point(f, k)).replace('.md', '.kelas.md')}.\n\n")
     if r == st["awal"] + 1 and st.get("masukan"):
         teks += (f"Ini REVISI berdasarkan masukan pemilik proyek di {st['masukan']} "
                  f"(bagian terakhirnya). Terapkan masukan itu pada point yang sudah ada — "
@@ -894,6 +896,21 @@ def prompt_writer(ws: Path, p: dict, pt: dict, r: int, st: dict) -> str:
         teks += ("Tulis point baru. Kalau berkas point-nya sudah ada sebagian (sesi "
                  "sebelumnya terputus), lanjutkan dari situ, jangan mulai dari nol.\n")
     return teks
+
+
+def prompt_bentuk(ws: Path, p: dict, pt: dict, langgar: list[str]) -> str:
+    """Tugas perbaikan bentuk: mekanis, sempit, tidak memakai putaran telaah."""
+    f = folder_pertemuan(ws, p["no"])
+    k = pt["no"]
+    return (f"Perbaiki BENTUK {_rel(ws, berkas_point(f, k))}. Pemeriksa otomatis "
+            f"menemukan pelanggaran kontrak keterbacaan berikut:\n\n"
+            + "\n".join(f"- {x}" for x in langgar)
+            + "\n\nSunting dengan Edit, dan perbaiki hanya hal di atas. Jangan "
+              "mengubah isi, contoh, angka, atau klaim apa pun, dan jangan "
+              "memangkas materi - yang berubah hanya bentuknya. Aturan "
+              "lengkapnya ada di bagian \"Kalimat dan paragraf\", \"Blok kode\", "
+              "\"Istilah\", \"Tanpa rujukan ke bagian lain\", dan \"Informasi "
+              "trainer bukan bacaan peserta\" di prompt peranmu.")
 
 
 def prompt_reviewer_point(ws: Path, p: dict, pt: dict, r: int) -> str:
@@ -972,6 +989,12 @@ async def _paralel_dengan_ulang(tugas: list[tuple], ws: Path, wilayah: Path, lab
         tugas = [t for t, _ in gagal]
 
 
+# Perbaikan bentuk otomatis per point. Dua kali cukup: putaran pertama
+# memperbaiki hampir semuanya, dan yang tersisa setelah dua kali biasanya butuh
+# penilaian - itu wilayah Reviewer, bukan pemeriksa.
+BENTUK_MAKS_PERBAIKAN = 2
+
+
 async def produksi_point(ws: Path, p: dict, pt: dict) -> str:
     """Tuntaskan satu point. Mengembalikan 'siap' atau 'eskalasi'.
 
@@ -1001,6 +1024,25 @@ async def produksi_point(ws: Path, p: dict, pt: dict) -> str:
             st["ditulis"] = r
             st.pop("masukan", None)
             simpan_status_point(ws, no, k, st)
+
+        # Bentuk diperiksa mesin sebelum Reviewer dipanggil: pelanggarannya
+        # mekanis, jadi menyerahkannya ke Reviewer hanya membakar token dan
+        # memakan jatah putaran untuk hal yang tidak butuh penilaian.
+        for percobaan in range(1, BENTUK_MAKS_PERBAIKAN + 1):
+            langgar = pemeriksa.bentuk_berkas_point(berkas_point(f, k))
+            if not langgar:
+                break
+            print(f">>> Point {no}.{k}: bentuk belum sesuai "
+                  f"({len(langgar)} jenis), perbaikan {percobaan}.")
+            await run_stage_retry(f"BENTUK-{kode}-r{r}-{percobaan}",
+                                  prompt_bentuk(ws, p, pt, langgar),
+                                  roles.WRITER, ws, budget("POINT_BENTUK", 1.0),
+                                  wilayah=f / "point")
+        else:
+            sisa = pemeriksa.bentuk_berkas_point(berkas_point(f, k))
+            if sisa:
+                print(f">>> Point {no}.{k}: bentuk masih dilanggar setelah "
+                      f"{BENTUK_MAKS_PERBAIKAN} perbaikan, diteruskan ke Reviewer.")
 
         rev, fak = berkas_review(f, k, r), berkas_fakta(f, k, r)
         tugas = []

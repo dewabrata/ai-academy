@@ -43,6 +43,7 @@ KUNCI: dict[str, dict] = {
     "BUDGET_BLUEPRINT": dict(grup="Biaya", label="Blueprint", tipe="angka"),
     "BUDGET_BLUEPRINT_TELAAH": dict(grup="Biaya", label="Telaah blueprint", tipe="angka"),
     "BUDGET_POINT_WRITER": dict(grup="Biaya", label="Writer / point", tipe="angka"),
+    "BUDGET_POINT_BENTUK": dict(grup="Biaya", label="Perbaikan bentuk / point", tipe="angka"),
     "BUDGET_POINT_REVIEW": dict(grup="Biaya", label="Reviewer / point", tipe="angka"),
     "BUDGET_POINT_FAKTA": dict(grup="Biaya", label="Fact-Checker / point", tipe="angka"),
     "BUDGET_SLIDE": dict(grup="Biaya", label="Slide / pertemuan", tipe="angka"),

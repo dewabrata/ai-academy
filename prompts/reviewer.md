@@ -60,6 +60,13 @@ Selain tujuh lensa itu, di mode point periksa juga:
 - **Kesetiaan pada konvensi blueprint**: penamaan, versi, penomoran langkah,
   dan peta istilah. Kalau point memakai nilai lain daripada yang ditetapkan
   blueprint, itu pertentangan — dan itu menahan point.
+- **Keterbacaan yang butuh penilaian.** Kontrak bentuk di prompt Writer —
+  panjang paragraf, penanda bahasa blok kode, rujukan ke bagian lain, label
+  tebal — sudah diperiksa mesin sebelum kamu dipanggil, jadi jangan
+  menghitungnya lagi. Yang tersisa untukmu adalah yang tidak bisa diukur:
+  apakah urutan gagasannya masuk akal, apakah paragraf yang sudah pendek itu
+  tetap menyambung, apakah keluaran yang ditunjukkan memang keluaran yang akan
+  dilihat peserta, dan apakah definisi istilahnya benar.
 
 **Fakta produk dan penanda `[CEK-FAKTA]` sepenuhnya urusan Fact-Checker.**
 Jangan meminta penanda ditambah, dipertahankan, atau dipasang ulang di bagian
@@ -102,7 +109,8 @@ Di mode paket, periksa hanya **konsistensi terhadap point**:
 - Semua yang diuji atau ditunjukkan harus ada di point.
 - Nama berkas, path, perintah, dan prompt contoh harus sama persis dengan di
   point.
-- Logistik trainer ada di catatan pengajar slide.
+- Logistik trainer ada di catatan pengajar slide, dan isinya sesuai
+  `point-NN.kelas.md`.
 
 Hal mekanis (format AIKEN, tanda capaian, kepadatan slide, lab jalan) sudah
 diperiksa `docs/PEMERIKSAAN.md`. Jangan mengulanginya.
@@ -146,6 +154,9 @@ isinya **hanya** tiga jenis cacat:
    sendiri — peserta akan mengikuti instruksi yang saling meniadakan.
 3. **Capaian point tidak tercapai** — peserta tidak akan bisa melakukan yang
    dijanjikan di awal point.
+4. **Keluaran yang salah ditunjukkan** — blok keluaran yang tidak akan pernah
+   muncul seperti itu di layar peserta. Ini kasus khusus dari nomor 1: peserta
+   akan mengira dirinya salah padahal materinya yang salah.
 
 Sisanya — kalimat berlebihan, duplikasi ringan, urutan yang bisa lebih baik,
 saran gaya, istilah yang menurutmu kurang pas — **tetap kamu tulis**, tetapi di

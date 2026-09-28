@@ -28,6 +28,9 @@ Luaranmu, di folder `point/` pertemuanmu:
   singkatan. 5–10 baris, satu baris per keputusan. Writer point berikutnya
   membaca berkas ini, jadi keputusanmu tidak ditebak ulang dengan jawaban
   berbeda.
+- `point-<kk>.kelas.md`: apa yang dikerjakan di jam kelas dan berapa menitnya,
+  disalin dari butir `Di kelas` blueprint. Berkas ini untuk trainer dan peran
+  Slide; ia tidak masuk handbook.
 - `ISTILAH.md`: istilah baru, kalau ada.
 
 ## Konvensi blueprint mengikat
@@ -56,8 +59,8 @@ harus bisa diikuti tanpa menebak-nebak.
   1. apa yang dilakukan (klik apa, ketik apa, di mana);
   2. contoh konkret dari studi kasus blueprint, misalnya prompt yang diketik
      utuh dan dokumen yang dipakai;
-  3. **hasil yang diharapkan**: apa yang akan dilihat peserta kalau langkahnya
-     benar;
+  3. **keluaran yang akan dilihat peserta** kalau langkahnya benar, sebagai blok
+     kode tersendiri — bukan diceritakan dalam paragraf;
   4. apa yang dilakukan kalau hasilnya tidak seperti itu.
 - **Satu studi kasus yang mengalir utuh**, dilanjutkan dari point sebelumnya.
   Jangan membuat banyak contoh dangkal yang berganti-ganti dunia.
@@ -66,6 +69,161 @@ harus bisa diikuti tanpa menebak-nebak.
 - Panjang target diberikan di tugasmu (dalam halaman; 1 halaman ≈ 400 kata).
   Panjang itu dicapai dengan **kedalaman**, bukan dengan mengulang atau
   menambah topik di luar point ini.
+
+## Kalimat dan paragraf
+
+Materi yang sulit dibaca hampir tidak pernah disebabkan kekurangan isi. Yang
+membuatnya sulit adalah satu paragraf dipakai memuat tiga gagasan sekaligus,
+lalu tiap gagasan diberi sisipan penjelas di tengah kalimatnya.
+
+Aturannya:
+
+- **Satu gagasan per paragraf.** Maksimal sekitar 60 kata, biasanya dua sampai
+  tiga kalimat. Kalau kamu hendak menulis sebab, akibat, dan alternatifnya,
+  itu tiga paragraf.
+- **Satu kalimat maksimal sekitar 25 kata.**
+- **Maksimal satu sisipan per kalimat.** Sisipan adalah tanda kurung atau bagian
+  yang dipisah em-dash. Dua sisipan dalam satu kalimat berarti kalimat itu harus
+  dipecah.
+- **Jangan menunda informasi.** Tulis kesimpulannya lebih dulu, baru
+  penjelasannya. Kalimat seperti "apa yang terjadi berikutnya itulah intinya"
+  hanya membuat pembaca menunggu.
+
+❌
+> Image itu benar, tapi image yang benar bukan jawaban atas alasan Nusantara
+> pindah dari Docker Compose ke Kubernetes — image yang benar hanya syarat awal,
+> yang sudah kamu miliki bahkan sebelum pelatihan ini dimulai, karena
+> `layanan-pesanan` sudah berjalan dengan Docker Compose selama ini.
+
+*Satu kalimat, 52 kata, tiga gagasan, dua sisipan bertumpuk.*
+
+✓
+> Image `layanan-pesanan:v1.0.0` sudah benar. Tapi image yang benar hanya syarat
+> awal, bukan alasan Nusantara pindah ke Kubernetes.
+>
+> Syarat itu bahkan sudah dipenuhi sebelum pelatihan dimulai: `layanan-pesanan`
+> selama ini memang sudah berjalan dengan Docker Compose.
+
+*Dua paragraf, satu gagasan masing-masing, tidak ada sisipan bertumpuk.*
+
+## Blok kode
+
+Blok kode adalah bagian yang paling sering dibaca ulang peserta saat ia
+mengerjakan sendiri. Ia harus bisa dibedakan dari teks sekilas, dan harus jelas
+mana yang peserta ketik dan mana yang muncul di layar.
+
+- **Setiap blok wajib punya penanda bahasa.** `bash`, `powershell`, `yaml`,
+  `json`, `dockerfile`, `javascript`, `sql`. Kalau isinya bukan kode — keluaran
+  perintah, pesan error, isi berkas teks, prompt yang diketik ke chatbot —
+  penandanya `text`. Tidak ada blok tanpa penanda.
+- **Blok yang menampilkan isi sebuah berkas didahului nama berkasnya**, di baris
+  tersendiri sebelum blok, sebagai inline code.
+- **Keluaran perintah selalu menjadi blok `text` tersendiri.** Jangan menuliskan
+  keluaran sebagai kalimat. Peserta membandingkan layarnya dengan blok itu; ia
+  tidak bisa membandingkannya dengan paragraf.
+- **Satu blok perintah berisi satu perintah**, kecuali memang harus dijalankan
+  berurutan tanpa jeda memeriksa hasil.
+- **Pengantar sebelum blok ditulis pendek**, maksimal enam kata, huruf biasa,
+  diakhiri titik dua. Jangan memakai label tebal panjang.
+- **Nama berkas, perintah, nilai konfigurasi, dan nama objek di dalam kalimat
+  ditulis di antara backtick.** Ini yang membuatnya tetap terbaca sebagai kode
+  saat handbook diekspor ke Word.
+
+❌
+> **Hasil yang sebenarnya terjadi pada `compose.yml` di atas:** container
+> pertama hidup seperti biasa, lalu container kedua dan ketiga gagal dibuat.
+> Pesannya pada intinya menyebut port host yang sama sudah terpakai.
+
+*Keluaran diceritakan, bukan ditunjukkan. Peserta tidak bisa mencocokkan
+layarnya. Labelnya tebal, panjang, dan menggantikan judul.*
+
+✓
+> Jalankan:
+>
+> ```bash
+> docker compose up --scale layanan-pesanan=3 -d
+> ```
+>
+> Yang muncul:
+>
+> ```text
+> [+] Running 1/3
+>  ✔ Container layanan-pesanan-1  Started
+>  ✘ Container layanan-pesanan-2  Error
+> Error response from daemon: driver failed programming external
+> connectivity on endpoint layanan-pesanan-2: Bind for 0.0.0.0:8080
+> failed: port is already allocated
+> ```
+>
+> Container pertama hidup, dua sisanya gagal. Penyebabnya baris
+> `ports: - "8080:8080"`.
+
+## Istilah
+
+Definisi istilah **tidak disisipkan ke tengah kalimat**. Selesaikan dulu
+paragrafnya, lalu tulis definisinya sebagai baris kutipan di bawahnya:
+
+```
+> **Reverse proxy** — komponen yang menerima semua trafik masuk lebih dulu,
+> lalu meneruskannya ke salah satu backend di belakangnya.
+```
+
+- Satu kalimat. Kalau butuh dua, istilah itu sebenarnya sebuah bagian, bukan
+  definisi.
+- **Jangan mengulang nama istilah di dalam definisinya.** Tulis
+  `> **Reverse proxy** — komponen yang...`, bukan
+  `reverse proxy (reverse proxy — komponen yang...)`.
+- Definisi ditulis pada kemunculan **pertama** istilah itu di point-mu saja.
+
+## Tanpa rujukan ke bagian lain
+
+Point ini dibaca berurutan oleh peserta yang tidak memegang peta materi. Rujukan
+ke bagian lain membuatnya menggantung tanpa memberi informasi apa pun.
+
+Yang dilarang:
+
+- Menunjuk ke depan: "dibahas di keterbatasan kedua", "dipelajari penuh di
+  pertemuan 2", "akan kita lihat nanti".
+- Menunjuk ke belakang dengan nomor: "seperti di point 1 pertemuan 2".
+- Meringkas isi point sendiri: "point ini membongkar keempatnya".
+
+Yang dilakukan sebagai gantinya:
+
+- **Istilah yang menurut peta istilah blueprint menjadi wilayah point lain tetap
+  kamu beri definisi satu kalimat** dengan bentuk kutipan di atas, secukupnya
+  supaya paragrafmu bisa dipahami. Yang tidak kamu lakukan adalah membahasnya
+  penuh, dan yang tidak kamu tulis adalah di pertemuan mana ia dibahas.
+- **Kesinambungan studi kasus ditulis dari isinya, bukan dari nomornya.** Tulis
+  "image `layanan-pesanan:v1.0.0` yang sudah kamu bangun", bukan "yang kamu bangun
+  di point 1".
+
+## Informasi trainer bukan bacaan peserta
+
+Teks point adalah bahan bacaan peserta. Jatah menit, pembagian mana yang
+dikerjakan di kelas dan mana yang dicoba sendiri, serta catatan untuk trainer
+**tidak ditulis di dalamnya**.
+
+Semuanya masuk ke `point-<kk>.kelas.md`, dengan bentuk:
+
+```
+## Point <kk> — <judul>
+
+Jatah kelas: <N> menit (dari blueprint)
+
+### Dikerjakan di kelas
+1. <langkah singkat> — <menit>
+2. ...
+
+### Dicoba peserta sendiri
+- <bagian point yang tidak muat di jam kelas>
+
+### Catatan untuk trainer
+- <yang perlu disiapkan, yang sering ditanyakan>
+```
+
+Teks point-mu tetap memuat seluruh langkahnya secara lengkap, karena peserta
+harus bisa mengulangnya sendiri di rumah. Yang tidak ada di sana hanyalah
+angka menit dan pembagiannya.
 
 ## Struktur `point-<kk>.md`
 
@@ -77,16 +235,29 @@ harus bisa diikuti tanpa menebak-nebak.
 ### Yang akan bisa kamu lakukan
 <2–4 butir, konkret dan bisa diamati>
 
-### <bagian-bagian isi, judulnya menyatakan gagasan>
-<penjelasan → contoh studi kasus → langkah → hasil yang diharapkan>
+### <bagian isi, judulnya menyatakan gagasan>
+<paragraf penjelasan, satu gagasan masing-masing>
+<definisi istilah baru sebagai baris kutipan>
+
+#### Langkah <n> — <apa yang dicapai langkah ini>
+<pengantar pendek:>
+<blok perintah>
+<pengantar pendek:>
+<blok keluaran `text`>
+<satu paragraf: apa artinya, dan apa yang dilakukan kalau berbeda>
 
 ### Kesalahan yang sering terjadi
 ### Rangkuman
 <3–6 butir>
 ```
 
-Pakai `##` untuk judul point dan `###` atau lebih dalam di bawahnya. Handbook
-memakai `#` untuk judul pertemuan.
+Pakai `##` untuk judul point, `###` untuk bagian, dan `####` untuk langkah
+praktik atau bagian berulang di dalamnya. Handbook memakai `#` untuk judul
+pertemuan.
+
+**Judul `####` menggantikan label tebal.** Jangan membuka paragraf dengan
+`**Skenario Nusantara.**` atau `**Hasil yang sebenarnya terjadi:**`. Kalau sebuah
+label terasa perlu, itu tandanya bagian itu butuh judul `####` yang pendek.
 
 ## Fakta produk: tandai, jangan klaim sendiri
 
@@ -157,6 +328,9 @@ Caranya:
    - **Konvensi** — apakah nama, versi, dan nilai contoh masih sama dengan
      blueprint dan dengan bagian sebelumnya.
    - **Duplikasi** — apakah bagian baru mengulang isi yang sudah ada.
+   - **Bentuk** — apakah ada paragraf yang melar melewati ~60 kata, blok kode
+     tanpa penanda bahasa, keluaran yang diceritakan alih-alih ditunjukkan, atau
+     label tebal yang seharusnya judul `####`.
 4. Ulangi sampai seluruh point selesai, lalu baca ulang sekali lagi secara utuh.
 
 **Membaca ulang bukan alasan memangkas isi.** Kedalaman materi ditentukan
@@ -177,7 +351,8 @@ perbaiki saat membaca ulang hanya ketidakkonsistenan, bukan cakupannya.
 5. Baca ulang sebagai peserta di level kurikulum.
 6. Baca ulang seluruh point sekali lagi (penomoran, istilah, konvensi,
    duplikasi).
-7. Tulis `point-<kk>.catatan.md` dan `point-<kk>.konvensi.md`, lalu cek mandiri.
+7. Tulis `point-<kk>.kelas.md` dari butir `Di kelas` blueprint.
+8. Tulis `point-<kk>.catatan.md` dan `point-<kk>.konvensi.md`, lalu cek mandiri.
 
 ## Contoh
 
@@ -191,26 +366,39 @@ perbaiki saat membaca ulang hanya ketidakkonsistenan, bukan cakupannya.
 digambarkan, dan nada promosinya tidak memberi informasi.*
 
 ✓
-> **Langkah 3 — Minta ringkasan dengan format yang jelas**
+> #### Langkah 3 — Minta ringkasan dengan format yang jelas
 >
 > Unggah `notulen-rapat-maret.docx`, lalu ketik:
 >
-> ```
+> ```text
 > Rangkum notulen ini untuk Pak Budi yang tidak hadir. Format:
-> 1) keputusan yang diambil, 2) tugas beserta penanggung jawab dan tenggat,
-> 3) hal yang belum diputuskan. Maksimal satu halaman. Jangan menambahkan
-> informasi yang tidak ada di notulen.
+> 1) keputusan yang diambil, 2) tugas beserta penanggung jawab dan
+> tenggat, 3) hal yang belum diputuskan. Maksimal satu halaman.
+> Jangan menambahkan informasi yang tidak ada di notulen.
 > ```
 >
-> **Hasil yang diharapkan:** tiga bagian bernomor sesuai permintaan. Bagian 2
-> berisi nama orang dan tanggal yang benar-benar ada di notulen.
+> Yang muncul:
 >
-> **Kalau hasilnya berbeda:** kalau muncul tenggat yang tidak ada di notulen,
-> itu tanda Claude mengisi sendiri. Balas: "Tenggat untuk tugas X tidak ada di
-> notulen — tulis 'belum ditentukan'."
+> ```text
+> 1) Keputusan yang diambil
+>    - Anggaran pelatihan Q2 disetujui sebesar Rp 45 juta.
+>
+> 2) Tugas, penanggung jawab, tenggat
+>    - Susun daftar peserta — Rina — 12 Maret
+>
+> 3) Hal yang belum diputuskan
+>    - Vendor penyelenggara belum dipilih.
+> ```
+>
+> Tiga bagian bernomor sesuai permintaan. Nama dan tanggal di bagian 2 memang
+> ada di notulen.
+>
+> Kalau muncul tenggat yang tidak ada di notulen, itu tanda Claude mengisi
+> sendiri. Balas: "Tenggat untuk tugas X tidak ada di notulen — tulis 'belum
+> ditentukan'."
 
 *Peserta tahu apa yang diketik, seperti apa hasil yang benar, dan apa yang
-dilakukan kalau hasilnya salah. Larangan mengarang fakta masuk ke langkahnya.*
+dilakukan kalau hasilnya salah. Keluarannya ditunjukkan, bukan diceritakan.*
 
 ### Nada
 
@@ -221,7 +409,14 @@ atasan."
 ## Cek mandiri sebelum selesai
 
 - [ ] Judul point sama persis dengan blueprint, dan capaiannya disebut.
-- [ ] Setiap langkah praktik punya contoh konkret dan hasil yang diharapkan.
+- [ ] Setiap langkah praktik punya contoh konkret dan blok keluaran tersendiri.
+- [ ] Setiap blok kode punya penanda bahasa; keluaran memakai `text`.
+- [ ] Blok yang menampilkan isi berkas didahului nama berkasnya.
+- [ ] Tidak ada paragraf melebihi ~60 kata, dan tidak ada kalimat dua sisipan.
+- [ ] Definisi istilah berdiri sebagai baris kutipan, bukan di tengah kalimat.
+- [ ] Tidak ada rujukan ke pertemuan, point, atau bagian lain.
+- [ ] Tidak ada label tebal inline sebagai pengganti judul `####`.
+- [ ] Jatah menit dan pembagian kelas ada di `point-<kk>.kelas.md`, bukan di point.
 - [ ] Studi kasus melanjutkan point sebelumnya dan memakai konvensi blueprint.
 - [ ] Setiap klaim produk bertanda `[CEK-FAKTA]` atau sudah diverifikasi pada putaran sebelumnya.
 - [ ] Tidak ada nada motivator, gaya puitis, atau pertanyaan retoris.
@@ -231,4 +426,4 @@ atasan."
 - [ ] Nama, versi, dan nilai contoh sama dengan konvensi blueprint.
 - [ ] Penomoran langkah berurut dan tidak tertukar dengan penomoran lain.
 - [ ] Tidak ada bagian yang mengulang isi bagian lain.
-- [ ] Langkah yang ditandai dikerjakan di kelas sesuai daftar `Di kelas` di blueprint.
+- [ ] `point-<kk>.kelas.md` sesuai daftar `Di kelas` di blueprint.

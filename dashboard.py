@@ -661,6 +661,13 @@ opacity:0;transition:.2s;pointer-events:none}
 .doc pre{background:#0f172a;color:#e2e8f0;padding:12px 14px;border-radius:8px;max-height:none;
 margin:0 0 14px}
 .doc pre code{background:none;color:inherit;padding:0;font-size:12.5px}
+.doc pre.kode{position:relative;padding-top:26px}
+.doc pre.kode[data-bahasa]::before{content:attr(data-bahasa);position:absolute;
+top:6px;right:10px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+color:#94a3b8}
+.doc pre.kode.keluaran{background:#f6f7f9;color:#1f2937;
+border:1px solid var(--garis)}
+.doc pre.kode.keluaran::before{color:#94a3b8}
 .doc blockquote{margin:0 0 12px;padding:6px 14px;border-left:3px solid var(--acc);
 background:var(--acc2);border-radius:0 6px 6px 0}
 .doc blockquote p{margin:0}
@@ -1110,7 +1117,7 @@ function gambar(){
 // Semua teks di-escape lebih dulu, jadi isi berkas tidak bisa menyuntik HTML.
 function mdKeHtml(teks){
   const baris=String(teks||"").replace(/\r/g,"").split("\n");
-  let html="", daftar=null, tabel=null, kode=null;
+  let html="", daftar=null, tabel=null, kode=null, bahasa="";
   const inline=t=>esc(t)
     .replace(/`([^`]+)`/g,(m,x)=>"<code>"+x+"</code>")
     .replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>")
@@ -1122,8 +1129,16 @@ function mdKeHtml(teks){
   for(let i=0;i<baris.length;i++){
     const b=baris[i], t=b.trim();
     if(/^```/.test(t)){                                   // blok kode
-      if(kode===null){tutupDaftar();tutupTabel();kode=[];}
-      else{html+="<pre><code>"+esc(kode.join("\n"))+"</code></pre>";kode=null;}
+      if(kode===null){tutupDaftar();tutupTabel();kode=[];
+        bahasa=t.replace(/^`+/,"").trim().toLowerCase();}
+      else{
+        // Blok keluaran dibedakan dari blok perintah: pembaca membandingkan
+        // layarnya dengan blok `text`, bukan mengetik ulang isinya.
+        const keluaran=(bahasa==="text"||bahasa==="")?" keluaran":"";
+        html+=`<pre class="kode${keluaran}"`
+            +(bahasa?` data-bahasa="${esc(bahasa)}"`:"")
+            +`><code>`+esc(kode.join("\n"))+"</code></pre>";
+        kode=null;bahasa="";}
       continue;}
     if(kode!==null){kode.push(b);continue;}
     if(!t){tutupDaftar();tutupTabel();continue;}

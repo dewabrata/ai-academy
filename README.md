@@ -30,6 +30,10 @@ silabus (.md / .txt / .docx / .pdf, atau teks langsung)
        │
        │   WRITER  ──→  point-NN.md
        │      ↑            │
+       │      │            ├─→ BENTUK        pemeriksa otomatis: penanda bahasa
+       │      │            │                 blok kode, panjang paragraf,
+       │      │            │                 rujukan antarbagian (tanpa model
+       │      │            │                 penilai, tidak memakai putaran)
        │      │            ├─→ REVIEWER      catatan revisi + skor tersembunyi
        │      │            └─→ FACT-CHECKER  klaim produk diverifikasi ke web
        │      └──── revisi ──┘   maks. 3 putaran, lalu dieskalasi
@@ -66,7 +70,7 @@ pertemuan itu.
 |---|---|---|
 | **Kurikulum** | baca/tulis | `KURIKULUM.md`, `GLOSARIUM.md` — capaian terukur, level peserta disimpulkan dari silabus, kesenjangan silabus |
 | **Blueprint** | baca/tulis | `BLUEPRINT.md` — daftar point per pertemuan (disalin apa adanya dari silabus), jenis tugas, alur sesi, logistik trainer. Ini kontrak produksi |
-| **Writer** | baca/tulis + **web** | `point/point-NN.md` — satu point sedalam handbook, plus catatan asumsi dan pertanyaan |
+| **Writer** | baca/tulis + **web** | `point/point-NN.md` — satu point sedalam handbook, plus catatan asumsi, konvensi, dan jatah menit kelas |
 | **Reviewer** | baca/tulis | catatan revisi per point dan per paket, format `Revisi / Perlu dicek-ditanyakan / Sudah oke lanjut / Status` |
 | **Fact-Checker** | baca/tulis + **web** | verifikasi klaim produk ke dokumentasi resmi, satu baris per klaim beserta URL sumbernya |
 | **Slide** | baca/tulis | `SLIDE.md` dari point final, tunduk batas kepadatan, logistik di catatan pengajar |
@@ -138,6 +142,8 @@ ai-academy/
     └── materi/pertemuan-NN/
         ├── point/point-NN.md          isi materi, sumber kebenaran
         ├── point/point-NN.catatan.md  asumsi & pertanyaan Writer
+        ├── point/point-NN.kelas.md    jatah menit & catatan trainer
+        │                              (tidak ikut ke handbook)
         ├── review/                    catatan Reviewer & Fact-Checker per putaran
         ├── HANDBOOK.md  → HANDBOOK.docx    (gabungan semua point)
         ├── SLIDE.md     → SLIDE.pptx
