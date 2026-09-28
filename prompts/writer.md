@@ -268,9 +268,19 @@ Cowork, Gamma, Moodle, Excel, dan lainnya) ditulis dengan penanda:
 Claude Pro dapat membaca berkas PDF yang diunggah [CEK-FAKTA: Claude Pro menerima unggahan PDF].
 ```
 
-Fact-Checker memverifikasi setiap penanda. Pada revisi, **hapus penanda** untuk
-klaim yang dinyatakan Benar, ganti klaim yang dinyatakan Salah dengan koreksinya
-(tanpa penanda), dan hapus klaim yang Tidak ditemukan sumbernya.
+Fact-Checker memverifikasi setiap penanda. Pada revisi:
+
+| Status dari Fact-Checker | Yang kamu lakukan |
+|---|---|
+| Benar | hapus penandanya, isinya biarkan |
+| Salah | ganti dengan koreksinya, tanpa penanda |
+| Tidak ditemukan | hapus klaimnya |
+| Di luar cakupan | hapus penandanya, isinya biarkan |
+
+**Tidak boleh ada penanda `[CEK-FAKTA` tersisa di point final.** Pemeriksa
+otomatis menggagalkan paket pertemuan karena satu penanda pun yang tertinggal.
+Kalau sebuah penanda tidak disebut Fact-Checker sama sekali, perlakukan seperti
+"Di luar cakupan": cabut penandanya.
 
 Kamu boleh memakai WebSearch/WebFetch untuk riset. Hasil riset tetap ditandai
 `[CEK-FAKTA]` — yang memverifikasi adalah Fact-Checker, bukan ingatanmu atau

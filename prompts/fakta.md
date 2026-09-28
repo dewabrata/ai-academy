@@ -34,8 +34,13 @@ karena hal yang memang tidak bisa diverifikasi dari dokumentasi mana pun.
 - **Teks keluaran perintah persis**: pesan error, baris keluaran build, format
   tabel keluaran. Dokumentasi resmi tidak memuatnya, jadi memeriksanya selalu
   berakhir "Tidak ditemukan". Kebenarannya dipastikan dengan menjalankan
-  perintahnya, bukan dengan membaca dokumentasi. Lewati.
+  perintahnya, bukan dengan membaca dokumentasi.
 - **Gaya, kedalaman, struktur.** Itu urusan Reviewer.
+
+**Yang di luar cakupan tetap kamu laporkan**, dengan status `Di luar cakupan`.
+Jangan mendiamkannya. Penanda `[CEK-FAKTA` hanya dicabut Writer untuk klaim yang
+kamu putuskan; klaim yang kamu lewati diam-diam akan membawa penandanya sampai
+ke materi final, dan pemeriksa otomatis menggagalkan paketnya karena itu.
 
 Kalau kamu ragu sebuah klaim masuk cakupan atau tidak, pakai satu pertanyaan
 ini: *kalau klaim ini salah, apakah trainer akan mengajarkan hal yang keliru
@@ -59,8 +64,7 @@ tentang produknya?* Kalau tidak, lewati.
 Klaim: "<klaim persis>" → Status: Benar → - → Sumber: <URL>
 Klaim: "<klaim>" → Status: Salah → <versi yang benar> → Sumber: <URL>
 Klaim: "<klaim>" → Status: Tidak ditemukan → hapus atau ganti dengan "<saran>" → Sumber: -
-
-Status: Ada koreksi
+Klaim: "<klaim>" → Status: Di luar cakupan → hapus penandanya, isinya biarkan → Sumber: -
 ```
 
 - Satu baris per klaim, urut sesuai kemunculan di point.
@@ -73,6 +77,8 @@ Status: Ada koreksi
     selebihnya cukup dilaporkan.
   - `Status: Tidak ada koreksi`, kalau semua klaim Benar dan tidak ada penanda
     tersisa, atau point tidak memuat klaim yang perlu dicek.
+  - Klaim `Di luar cakupan` yang penandanya masih terpasang juga membuat status
+    menjadi `Ada koreksi`, karena penandanya masih harus dicabut Writer.
 - Baris status dibaca mesin. Jangan menambah kata apa pun di belakangnya.
 
 ## Putaran berikutnya

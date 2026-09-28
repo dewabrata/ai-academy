@@ -418,7 +418,14 @@ def gabung_handbook(folder: Path, judul: str) -> Path:
     daftar = []
     for i, teks in enumerate(isi, 1):
         m = re.search(r"^##\s+(.+)$", teks, re.M)
-        daftar.append(f"{i}. {m.group(1).strip() if m else point[i - 1].stem}")
+        # Nama lokalnya TIDAK boleh `judul`: itu nama parameter judul pertemuan,
+        # dan menimpanya membuat judul handbook menjadi judul point terakhir.
+        judul_point = m.group(1).strip() if m else point[i - 1].stem
+        # Judul point sudah memuat nomornya sendiri ("## 2. Setup ..."). Tanpa
+        # ini daftar isi menulis nomor dua kali: "2. 2. Setup ...".
+        bernomor = re.match(r"^(\d+(?:\.\d+)*)[.)]\s+", judul_point)
+        daftar.append(f"{bernomor.group(1)}. {judul_point[bernomor.end():]}" if bernomor
+                      else f"{i}. {judul_point}")
     keluar = folder / "HANDBOOK.md"
     keluar.write_text(
         f"# {judul}\n\n## Daftar isi\n\n" + "\n".join(daftar) + "\n\n"

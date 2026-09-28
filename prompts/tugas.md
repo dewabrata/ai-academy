@@ -86,8 +86,17 @@ lab/
 - `lab/solusi/` **wajib kamu eksekusi** sampai berhasil. Kalau setelah beberapa
   percobaan tetap gagal, laporkan tahap ini gagal. Jangan serahkan lab yang
   tidak jalan.
-- Semua skrip di `lab/solusi/` dijalankan ulang otomatis satu per satu. Skrip
-  yang membaca `input()` diberi masukan contoh.
+- `lab/solusi/` **dijalankan ulang otomatis**. Kalau ada berkas bernama
+  `uji-*` atau `test-*`, hanya itu yang dijalankan; kalau tidak ada, seluruh
+  skrip di puncak folder dijalankan satu per satu. Skrip yang membaca stdin
+  diberi masukan contoh.
+- **Kalau solusimu memuat berkas yang tidak berdiri sendiri** — hook yang
+  menunggu payload dari stdin, modul yang hanya diimpor, konfigurasi — sertakan
+  penguji bernama `uji-<nama>` yang memanggilnya dengan masukan yang benar lalu
+  memeriksa hasilnya. Tanpa itu berkas tersebut dijalankan langsung, pasti
+  gagal, dan lab-mu dilaporkan tidak jalan padahal isinya benar.
+- Bahasa yang bisa dijalankan pemeriksa: Python dan Node.js. Solusi dalam
+  bahasa lain tetap boleh, tetapi tidak terverifikasi otomatis.
 - `lab/README.md` berisi bagian: *Yang akan kamu buat*, *Prasyarat dan cara
   menjalankan*, *Langkah*, *Keluaran yang diharapkan* (keluaran **nyata** dari
   eksekusimu), dan *Kalau macet*.

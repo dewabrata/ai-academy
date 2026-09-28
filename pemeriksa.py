@@ -16,6 +16,7 @@ tetap tugas Reviewer.
 """
 import json
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -247,13 +248,39 @@ def _pecah_soal(latihan: str) -> list[tuple[str, str]]:
     return out
 
 
+# Bahasa lab ditentukan silabus, bukan oleh pemeriksa. Sebelumnya pemeriksa
+# hanya mengenal .py, sehingga lab Node.js yang benar dilaporkan GAGAL dengan
+# alasan "tidak ada berkas .py" — cacat pemeriksanya, bukan cacat materinya.
+PENERJEMAH: dict[str, list[str]] = {
+    ".py": [sys.executable],
+    ".js": ["node"],
+    ".mjs": ["node"],
+    ".cjs": ["node"],
+}
+NAMA_MASUK = ("main", "solusi", "app", "run", "index")
+
+
+def _ada_penerjemah(cmd: list[str]) -> bool:
+    return bool(cmd) and (Path(cmd[0]).exists() or shutil.which(cmd[0]) is not None)
+
+
 def _titik_masuk(solusi: Path) -> list[Path]:
     """Skrip yang dijalankan. Tanpa titik masuk bernama, semua skrip di puncak
     `solusi/` dijalankan — prompt lama tidak mewajibkan main.py (design D6)."""
-    for nama in ("main.py", "solusi.py", "app.py", "run.py"):
-        if (solusi / nama).is_file():
-            return [solusi / nama]
-    return sorted(solusi.glob("*.py"))
+    kandidat = sorted(p for p in solusi.glob("*.*")
+                      if p.is_file() and p.suffix.lower() in PENERJEMAH)
+    # Penguji didahulukan. Solusi lab bisa memuat berkas yang memang tidak
+    # berdiri sendiri — hook yang menunggu payload JSON di stdin, modul yang
+    # hanya diimpor. Menjalankannya langsung pasti gagal dan tidak membuktikan
+    # apa pun; yang membuktikan solusinya benar adalah pengujinya.
+    penguji = [p for p in kandidat if p.stem.lower().startswith(("uji", "test"))]
+    if penguji:
+        return penguji
+    for nama in NAMA_MASUK:
+        pilih = [p for p in kandidat if p.stem.lower() == nama]
+        if pilih:
+            return pilih
+    return kandidat
 
 
 def periksa_aiken(teks: str) -> list[str]:
@@ -458,23 +485,38 @@ def periksa_pertemuan(ws: Path, p: dict) -> list[dict]:
     else:
         solusi = f / "lab" / "solusi"
         skrip = _titik_masuk(solusi) if solusi.is_dir() else []
-        if not skrip:
+        isi = [p for p in solusi.rglob("*") if p.is_file()] if solusi.is_dir() else []
+        if skrip:
+            h.append(_jalankan_lab(solusi, skrip, rel))
+        elif not solusi.is_dir() or not isi:
             h.append(_hasil("lab jalan", GAGAL,
                             "lab/solusi/ tidak ada" if not solusi.is_dir()
-                            else "tidak ada berkas .py di lab/solusi/", f"{rel}/lab/solusi"))
+                            else "lab/solusi/ kosong", f"{rel}/lab/solusi"))
         else:
-            h.append(_jalankan_lab(solusi, skrip, rel))
+            # Ada solusinya, hanya bahasanya di luar yang bisa dijalankan
+            # pemeriksa. Itu keterbatasan alat, bukan materi yang cacat.
+            jenis = sorted({p.suffix for p in isi if p.suffix}) or ["tanpa ekstensi"]
+            h.append(_hasil("lab jalan", TAK_BERLAKU,
+                            f"berkas {', '.join(jenis)} — pemeriksa hanya menjalankan "
+                            f"{', '.join(sorted(PENERJEMAH))}", f"{rel}/lab/solusi"))
     return h
 
 
 def _jalankan_lab(solusi: Path, skrip: list[Path], rel: str) -> dict:
-    lulus, gagal = [], []
+    lulus, gagal, dilewati = [], [], []
     for masuk in skrip:
-        # Lab yang membaca input() diberi masukan contoh; tanpa itu EOFError
-        # akan tercatat sebagai kegagalan padahal kodenya benar.
-        masukan = "10\n20\n30\n\n" * 5 if "input(" in _baca(masuk) else ""
+        cmd = PENERJEMAH.get(masuk.suffix.lower(), [])
+        if not _ada_penerjemah(cmd):
+            # Penerjemah tidak terpasang di mesin ini bukan berarti solusinya
+            # salah. Melaporkannya sebagai GAGAL akan menuduh materi yang benar.
+            dilewati.append(f"{masuk.name} ({cmd[0] if cmd else masuk.suffix} tidak terpasang)")
+            continue
+        # Lab yang membaca stdin diberi masukan contoh; tanpa itu EOFError akan
+        # tercatat sebagai kegagalan padahal kodenya benar.
+        sumber = _baca(masuk)
+        masukan = "10\n20\n30\n\n" * 5 if ("input(" in sumber or "process.stdin" in sumber) else ""
         try:
-            r = subprocess.run([sys.executable, masuk.name], cwd=str(solusi), input=masukan,
+            r = subprocess.run(cmd + [masuk.name], cwd=str(solusi), input=masukan,
                                capture_output=True, text=True, timeout=BATAS_WAKTU_LAB,
                                encoding="utf-8", errors="replace")
             if r.returncode == 0:
@@ -484,8 +526,14 @@ def _jalankan_lab(solusi: Path, skrip: list[Path], rel: str) -> dict:
                 gagal.append(f"{masuk.name} exit {r.returncode}: {' | '.join(ekor)[:120]}")
         except subprocess.TimeoutExpired:
             gagal.append(f"{masuk.name} melebihi {BATAS_WAKTU_LAB} detik")
-    bukti = "; ".join(gagal) if gagal else ", ".join(lulus) + " exit 0"
-    return _hasil("lab jalan", GAGAL if gagal else LULUS, bukti, f"{rel}/lab/solusi")
+    if gagal:
+        return _hasil("lab jalan", GAGAL, "; ".join(gagal), f"{rel}/lab/solusi")
+    if not lulus:
+        return _hasil("lab jalan", TAK_BERLAKU, "; ".join(dilewati), f"{rel}/lab/solusi")
+    bukti = ", ".join(lulus) + " exit 0"
+    if dilewati:
+        bukti += f" ({len(dilewati)} dilewati: {'; '.join(dilewati)})"
+    return _hasil("lab jalan", LULUS, bukti, f"{rel}/lab/solusi")
 
 
 def skor(hasil: list[dict]) -> float | None:
