@@ -194,6 +194,18 @@ def start(project: str, action: str, text: str = "", pilot: int | None = None,
         return True, (f"Membuat slide untuk "
                       f"{'semua pertemuan' if nomor in ('semua', 'all') else 'pertemuan ' + nomor}.")
 
+    if action == "moodle":
+        if not (WS / project).exists():
+            return False, f"Proyek '{project}' tidak ada di workspace/."
+        ulang = (text or "").strip().lower() in ("ulang", "rencana-ulang")
+        cmd += ["--project", project,
+                "--moodle", "rencana-ulang" if ulang else "rencana"]
+        if env_tambahan and env_tambahan.get("BATCH"):
+            cmd += ["--batch", str(env_tambahan.pop("BATCH"))]
+        _spawn(cmd, project, env_tambahan)
+        return True, ("Menyusun ulang rencana Moodle." if ulang
+                      else "Menyusun rencana Moodle. LMS belum disentuh.")
+
     if action == "bahan":
         if not (WS / project).exists():
             return False, f"Proyek '{project}' tidak ada di workspace/."

@@ -1,4 +1,4 @@
-"""Definisi sembilan peran "karyawan AI" produksi materi ajar.
+"""Definisi sepuluh peran "karyawan AI" produksi materi ajar.
 
 Tiap peran dipakai sebagai system_prompt + model pada satu query() tersendiri,
 jadi konteks tiap peran bersih dan biaya per tahap bisa dibatasi.
@@ -95,6 +95,12 @@ TUGAS = dict(model=model_for("TUGAS"), system_prompt=load("tugas"), tools=CODE_T
 APLIKASI = dict(model=model_for("APLIKASI"), system_prompt=load("aplikasi"),
                 tools=CODE_TOOLS)
 
+# Menyusun rencana unggah Moodle: nama, kalimat instruksi tugas, pertanyaan
+# feedback, dan bobot penilaian. Tidak menyentuh LMS — luarannya satu berkas
+# JSON yang dieksekusi moodle_unggah.py.
+MOODLE = dict(model=model_for("MOODLE"), system_prompt=load("moodle"),
+              tools=DOC_TOOLS)
+
 # Penyeragaman bahasa di akhir
 EDITOR = dict(model=model_for("EDITOR"), system_prompt=load("editor"), tools=DOC_TOOLS)
 
@@ -107,6 +113,7 @@ SEMUA = {
     "SLIDE": SLIDE,
     "TUGAS": TUGAS,
     "APLIKASI": APLIKASI,
+    "MOODLE": MOODLE,
     "EDITOR": EDITOR,
 }
 

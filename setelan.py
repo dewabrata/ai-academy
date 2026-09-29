@@ -38,6 +38,7 @@ KUNCI: dict[str, dict] = {
     "MODEL_SLIDE": dict(grup="Model", label="Slide", tipe="teks"),
     "MODEL_TUGAS": dict(grup="Model", label="Tugas", tipe="teks"),
     "MODEL_APLIKASI": dict(grup="Model", label="Aplikasi", tipe="teks"),
+    "MODEL_MOODLE": dict(grup="Model", label="Moodle", tipe="teks"),
     "MODEL_EDITOR": dict(grup="Model", label="Editor", tipe="teks"),
 
     "BUDGET_KURIKULUM": dict(grup="Biaya", label="Kurikulum", tipe="angka"),
@@ -50,6 +51,7 @@ KUNCI: dict[str, dict] = {
     "BUDGET_SLIDE": dict(grup="Biaya", label="Slide / pertemuan", tipe="angka"),
     "BUDGET_TUGAS": dict(grup="Biaya", label="Tugas / pertemuan", tipe="angka"),
     "BUDGET_APLIKASI": dict(grup="Biaya", label="Aplikasi / pertemuan", tipe="angka"),
+    "BUDGET_MOODLE": dict(grup="Biaya", label="Rencana Moodle", tipe="angka"),
     "BUDGET_PAKET_REVIEW": dict(grup="Biaya", label="Telaah paket", tipe="angka"),
     "BUDGET_EDITOR": dict(grup="Biaya", label="Editor", tipe="angka"),
     "BUDGET_PROYEK": dict(grup="Biaya", label="Plafon total proyek", tipe="angka"),
@@ -76,6 +78,11 @@ KUNCI: dict[str, dict] = {
     "DASHBOARD_PASS": dict(grup="Dashboard", label="Kata sandi", tipe="sandi"),
     "DASHBOARD_PORT": dict(grup="Dashboard", label="Port", tipe="angka"),
     "DASHBOARD_SESI_JAM": dict(grup="Dashboard", label="Umur sesi (jam)", tipe="angka"),
+
+    "MOODLE_MCP_URL": dict(grup="Moodle", label="URL server MCP", tipe="teks"),
+    "MOODLE_TOKEN": dict(grup="Moodle", label="Token web service", tipe="sandi"),
+    "MOODLE_KATEGORI": dict(grup="Moodle", label="Id kategori kursus", tipe="angka"),
+    "MOODLE_TEMPLATE": dict(grup="Moodle", label="Id kursus template", tipe="angka"),
 
     "ANTHROPIC_API_KEY": dict(grup="Autentikasi", label="API key (kosong = langganan)",
                               tipe="sandi"),

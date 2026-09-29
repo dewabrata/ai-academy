@@ -354,6 +354,8 @@ class Handler(BaseHTTPRequestHandler):
         if not self._sesi_ok():
             return self._json({"error": "Belum masuk.", "login": True}, 401)
 
+        if u.path == "/api/moodle":
+            return self._json(self._moodle_keadaan(q.get("project", [""])[0]))
         if u.path == "/api/proyek":
             return self._json({"proyek": control.daftar_proyek(),
                                "berjalan": control.running_any(),
@@ -435,6 +437,14 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/api/slide":
             ok, msg = control.start(p, "slide", str(b.get("pertemuan") or "semua"))
             return self._json({"ok": ok, "msg": msg}, 200 if ok else 400)
+        if u.path == "/api/moodle-rencana":
+            ok, msg = control.start(p, "moodle", str(b.get("ulang") or ""),
+                                    env_tambahan={"BATCH": b.get("batch") or ""})
+            return self._json({"ok": ok, "msg": msg}, 200 if ok else 400)
+        if u.path == "/api/moodle-simpan":
+            return self._json(*self._moodle_simpan(p, b))
+        if u.path == "/api/moodle-unggah":
+            return self._json(*self._moodle_unggah(p, b))
         if u.path == "/api/bahan":
             ok, msg = control.start(p, "bahan", str(b.get("pertemuan") or "semua"))
             return self._json({"ok": ok, "msg": msg}, 200 if ok else 400)
@@ -500,6 +510,88 @@ class Handler(BaseHTTPRequestHandler):
         return self._json({"error": "Tidak ada."}, 404)
 
     # ---- buat proyek ----
+    # ---- Moodle ---------------------------------------------------------
+    def _moodle_keadaan(self, project: str) -> dict:
+        """Komposisi proyek, rencana yang sudah ada, dan kesiapan setelan."""
+        import moodle_unggah
+        if not SAFE_NAME.match(project or "") or not (WS / project).exists():
+            return {"ok": False, "msg": "Proyek tidak ditemukan."}
+        ws = WS / project
+        out = {"ok": True, "project": project}
+        try:
+            out["komposisi"] = moodle_unggah.komposisi(ws)
+        except Exception as e:
+            return {"ok": False, "msg": f"Blueprint belum bisa dibaca: {e}"}
+        p = ws / "docs" / moodle_unggah.BERKAS_RENCANA
+        if p.is_file():
+            try:
+                r = json.loads(p.read_text(encoding="utf-8"))
+                out["rencana"] = r
+                out["masalah"] = moodle_unggah.periksa(r, out["komposisi"])
+            except ValueError as e:
+                out["masalah"] = [f"{p.name} bukan JSON yang sah: {e}"]
+        h = ws / "docs" / moodle_unggah.BERKAS_HASIL
+        if h.is_file():
+            try:
+                out["hasil"] = json.loads(h.read_text(encoding="utf-8"))
+            except ValueError:
+                pass
+        out["bobot_hitungan"] = moodle_unggah.bobot_hitungan(out["komposisi"])
+        out["setelan"] = {
+            "url": bool((os.getenv("MOODLE_MCP_URL") or "").strip()),
+            "token": bool((os.getenv("MOODLE_TOKEN") or "").strip()),
+            "kategori": (os.getenv("MOODLE_KATEGORI") or "").strip(),
+            "template": (os.getenv("MOODLE_TEMPLATE") or "").strip(),
+        }
+        return out
+
+    def _moodle_simpan(self, project: str, b: dict) -> tuple[dict, int]:
+        """Simpan suntingan rencana dari dashboard, setelah diperiksa."""
+        import moodle_unggah
+        if not SAFE_NAME.match(project or "") or not (WS / project).exists():
+            return {"ok": False, "msg": "Proyek tidak ditemukan."}, 404
+        ws = WS / project
+        rencana_ = b.get("rencana")
+        if not isinstance(rencana_, dict):
+            return {"ok": False, "msg": "Rencana kosong."}, 400
+        masalah = moodle_unggah.periksa(rencana_, moodle_unggah.komposisi(ws))
+        if masalah:
+            return {"ok": False, "msg": "Rencana belum lolos pemeriksaan.",
+                    "masalah": masalah}, 400
+        (ws / "docs" / moodle_unggah.BERKAS_RENCANA).write_text(
+            json.dumps(rencana_, ensure_ascii=False, indent=1), encoding="utf-8")
+        return {"ok": True, "msg": "Rencana disimpan."}, 200
+
+    def _moodle_unggah(self, project: str, b: dict) -> tuple[dict, int]:
+        """Jalankan unggahan. Deterministik, tanpa memanggil model."""
+        import moodle
+        import moodle_unggah
+        if not SAFE_NAME.match(project or "") or not (WS / project).exists():
+            return {"ok": False, "msg": "Proyek tidak ditemukan."}, 404
+        ws = WS / project
+        p = ws / "docs" / moodle_unggah.BERKAS_RENCANA
+        if not p.is_file():
+            return {"ok": False, "msg": "Belum ada rencana. Susun dulu."}, 400
+        try:
+            rencana_ = json.loads(p.read_text(encoding="utf-8"))
+        except ValueError as e:
+            return {"ok": False, "msg": f"Rencana bukan JSON yang sah: {e}"}, 400
+        try:
+            kategori = int(b.get("kategori") or os.getenv("MOODLE_KATEGORI") or 0)
+            template = int(b.get("template") or os.getenv("MOODLE_TEMPLATE") or 0)
+        except ValueError:
+            return {"ok": False, "msg": "Id kategori/template harus angka."}, 400
+        if not kategori:
+            return {"ok": False, "msg": "Id kategori Moodle belum diisi."}, 400
+        catatan = []
+        try:
+            hasil = moodle_unggah.unggah(ws, rencana_, kategori, template,
+                                         lapor=catatan.append)
+        except (moodle_unggah.RencanaError, moodle.MoodleError) as e:
+            return {"ok": False, "msg": str(e), "log": catatan}, 400
+        return {"ok": True, "msg": f"Kursus {hasil['kursus_id']} dibuat di Moodle.",
+                "hasil": hasil, "log": catatan}, 200
+
     def _proyek_baru(self, b: dict) -> tuple[dict, int]:
         nama = (b.get("nama") or "").strip()
         if not SAFE_NAME.match(nama):
@@ -732,6 +824,7 @@ HALAMAN = r"""<!doctype html><html lang="id"><head><meta charset="utf-8">
   <button id="t-ringkas" onclick="tab('ringkas')">Ringkasan</button>
   <button id="t-materi" onclick="tab('materi')">Materi</button>
   <button id="t-berkas" onclick="tab('berkas')">Berkas &amp; opsi</button>
+  <button id="t-moodle" onclick="tab('moodle')">Moodle</button>
   <button id="t-setelan" onclick="tab('setelan')">Pengaturan</button>
   <button id="t-baru" onclick="tab('baru')">Proyek baru</button>
 </nav>
@@ -740,6 +833,7 @@ HALAMAN = r"""<!doctype html><html lang="id"><head><meta charset="utf-8">
   <div id="ringkas" hidden><div id="kotakGate"></div><div id="isiRingkas"></div></div>
   <div id="materi" hidden></div>
   <div id="berkas" hidden></div>
+  <div id="moodle" hidden></div>
   <div id="setelan" hidden></div>
   <div id="baru" hidden></div>
 </main>
@@ -762,9 +856,10 @@ async function post(u,d){return api(u,{method:"POST",
 async function keluar(){await post("/api/logout",{});location.reload();}
 
 function tab(n){TAB=n;
-  for(const x of ["proyek","ringkas","materi","berkas","setelan","baru"]){
+  for(const x of ["proyek","ringkas","materi","berkas","moodle","setelan","baru"]){
     document.getElementById(x).hidden=(x!==n);
     document.getElementById("t-"+x).classList.toggle("on",x===n);}
+  if(n==="moodle")muatMoodle();
   if(n==="setelan")muatSetelan();
   if(n==="baru")gambarBaru();
   if(n==="proyek")muatArsip();
@@ -1249,6 +1344,181 @@ async function buatSlide(pertemuan){
       ?"Buat slide untuk semua pertemuan yang belum punya slide?\n\nIni memanggil model dan menambah biaya."
       :`Buat slide untuk pertemuan ${pertemuan}?\n\nIni memanggil model dan menambah biaya.`))return;
   const j=await post("/api/slide",{project:aktif,pertemuan});pesan(j.msg);muatDetail();}
+
+let MOODLE=null;
+
+async function muatMoodle(){
+  const el=document.getElementById("moodle");
+  if(!aktif){el.innerHTML='<div class="kartu"><p class="kecil">Pilih proyek dulu di tab Proyek.</p></div>';return;}
+  const j=await api("/api/moodle?project="+encodeURIComponent(aktif));
+  if(!j.ok){el.innerHTML=`<div class="kartu"><p class="kecil">${esc(j.msg||"Gagal membaca proyek.")}</p></div>`;return;}
+  MOODLE=j; gambarMoodle();
+}
+
+function gambarMoodle(){
+  const j=MOODLE, k=j.komposisi, r=j.rencana, s=j.setelan;
+  const el=document.getElementById("moodle");
+
+  // Setelan yang belum lengkap menghentikan unggahan, jadi disebut lebih dulu.
+  const kurang=[];
+  if(!s.url) kurang.push("URL server MCP");
+  if(!s.token) kurang.push("Token web service");
+  if(!s.kategori) kurang.push("Id kategori kursus");
+  const blokSetelan=kurang.length
+    ? `<div class="kartu"><h2>Setelan Moodle belum lengkap</h2>
+        <p class="kecil">Belum diisi: <b>${kurang.map(esc).join(", ")}</b>.
+        Isi di tab Pengaturan, grup Moodle.</p></div>` : "";
+
+  const baris=k.pertemuan.map(x=>`<tr>
+      <td>${x.no}</td><td>${esc(x.judul.slice(0,52))}</td>
+      <td>${x.berkas.length||"—"}</td>
+      <td>${x.quiz?"✓":"—"}</td><td>${x.praktik?"✓":"—"}</td>
+      <td>${x.bahan?"✓":"—"}</td>
+      <td>${x.siap?'<span class="pil ok">siap</span>':'<span class="pil bad">belum ada materi</span>'}</td>
+    </tr>`).join("");
+
+  const blokKomposisi=`<div class="kartu"><h2>Yang akan diunggah</h2>
+    <table><tr><th>#</th><th>Pertemuan</th><th>Berkas</th><th>Quiz</th>
+      <th>Praktik</th><th>Bahan</th><th></th></tr>${baris}</table>
+    <p class="kecil" style="margin-top:8px">Dibaca dari proyek — bukan dari
+      pengaturan. Pertemuan tanpa materi tidak ikut diunggah.</p></div>`;
+
+  if(!r){
+    el.innerHTML=blokSetelan+blokKomposisi+`<div class="kartu"><h2>Rencana unggah</h2>
+      <p class="kecil">Belum ada rencana. Peran Moodle akan menyusunnya dari materi
+        proyek ini: nama kursus, judul section, instruksi tiap tugas, pertanyaan
+        feedback, dan bobot penilaian. <b>LMS belum disentuh sama sekali.</b></p>
+      <div style="margin-top:10px"><label>Nama batch</label>
+        <input id="mdBatch" placeholder="mis. Batch 2 — Oktober 2026"></div>
+      <div class="baris" style="margin-top:10px">
+        <button class="pri" onclick="susunRencana(false)">Susun rencana</button>
+        <span class="kecil">Memanggil model, perkiraan di bawah $1.</span>
+      </div></div>`;
+    return;
+  }
+
+  const b=r.penilaian.bobot, al=r.penilaian.alasan||{};
+  const bobotBaris=["quiz","praktik","proyek","kehadiran"].map(x=>`
+    <tr><td style="text-transform:capitalize">${x}</td>
+      <td style="white-space:nowrap"><input type="number" min="0" max="100"
+        id="mdB-${x}" value="${b[x]}" style="width:72px" oninput="hitungTotal()">%</td>
+      <td class="kecil">${esc(al[x]||"")}</td></tr>`).join("");
+
+  const masalah=(j.masalah||[]);
+  const blokMasalah=masalah.length
+    ? `<div class="kartu"><h2>Rencana belum bisa dijalankan</h2>
+        <ul class="kecil">${masalah.map(m=>`<li>${esc(m)}</li>`).join("")}</ul>
+        <p class="kecil">Perbaiki di sini, atau susun ulang rencananya.</p></div>` : "";
+
+  const hasil=j.hasil?`<div class="kartu"><h2>Sudah pernah diunggah</h2>
+      <p class="kecil">Kursus id <b>${j.hasil.kursus_id}</b>,
+        ${j.hasil.pertemuan.length} pertemuan. Mengunggah lagi membuat kursus
+        <b>baru</b>, bukan memperbarui yang itu.</p></div>`:"";
+
+  el.innerHTML=blokSetelan+blokKomposisi+blokMasalah+`
+    <div class="kartu"><h2>Rencana unggah</h2>
+      <div class="grid g2">
+        <div><label>Nama kursus</label>
+          <input id="mdNama" value="${esc(r.kursus.fullname)}"></div>
+        <div><label>Kode kursus (shortname)</label>
+          <input id="mdShort" value="${esc(r.kursus.shortname)}"></div>
+      </div>
+      <p class="kecil" style="margin-top:10px">Tiap pertemuan mendapat folder
+        materi, quiz, tugas praktik, dan feedback sesuai yang ada di proyek.</p>
+      <table style="margin-top:6px"><tr><th>#</th><th>Section</th><th>Folder</th>
+        <th>Quiz</th><th>Praktik</th><th>Feedback</th></tr>
+        ${r.pertemuan.map(x=>`<tr><td>${x.no}</td>
+          <td>${esc((x.section||"").slice(0,40))}</td>
+          <td>${x.folder_materi?esc(x.folder_materi.nama):"—"}</td>
+          <td>${x.quiz?esc(x.quiz.nama):"—"}</td>
+          <td>${x.praktik?esc(x.praktik.nama):"—"}</td>
+          <td>${x.feedback?`${esc(x.feedback.nama)} (${(x.feedback.pertanyaan||[]).length})`:"—"}</td>
+        </tr>`).join("")}
+      </table>
+      ${r.proyek_akhir?`<p class="kecil" style="margin-top:8px">Proyek akhir:
+        <b>${esc(r.proyek_akhir.nama)}</b> di pertemuan ${r.proyek_akhir.pertemuan}.</p>`:""}
+      <p class="kecil">Absensi: <b>${esc((r.absensi||{}).nama||"Absensi Pelatihan")}</b>
+        — modul dibuat, sesinya diisi trainer di Moodle.</p>
+    </div>
+
+    <div class="kartu"><h2>Penilaian</h2>
+      <table><tr><th>Kategori</th><th>Bobot</th><th>Alasan</th></tr>${bobotBaris}
+        <tr><td><b>Total</b></td><td><b id="mdTotal">—</b></td>
+          <td class="kecil">harus tepat 100</td></tr>
+        <tr><td>Nilai lulus</td>
+          <td><input type="number" min="50" max="100" id="mdLulus"
+            value="${r.penilaian.nilai_lulus}" style="width:72px">%</td>
+          <td class="kecil">batas lulus kursus</td></tr></table>
+      <p class="kecil" style="margin-top:8px">Bobot disusun peran Moodle dari
+        komposisi pelatihan ini. Kalau diubah, alasannya tidak ikut berubah.
+        Hitungan cadangan tanpa model:
+        quiz ${j.bobot_hitungan.quiz} / praktik ${j.bobot_hitungan.praktik} /
+        proyek ${j.bobot_hitungan.proyek} / kehadiran ${j.bobot_hitungan.kehadiran}.</p>
+    </div>
+
+    ${hasil}
+
+    <div class="kartu"><h2>Unggah</h2>
+      <div class="grid g2">
+        <div><label>Id kategori Moodle</label>
+          <input id="mdKat" value="${esc(s.kategori||"")}"></div>
+        <div><label>Id kursus template</label>
+          <input id="mdTpl" value="${esc(s.template||"")}"></div>
+      </div>
+      <div class="baris" style="margin-top:12px">
+        <button onclick="simpanRencana()">Simpan perubahan</button>
+        <button onclick="susunRencana(true)">Susun ulang rencana</button>
+        <button class="pri" onclick="unggahMoodle()"
+          ${masalah.length?"disabled":""}>Unggah ke Moodle</button>
+      </div>
+      <p class="kecil" style="margin-top:8px">Unggah dikerjakan kode biasa tanpa
+        model. Kursus dibuat baru tiap kali ditekan.</p>
+      <pre id="mdLog" style="margin-top:10px;display:none"></pre>
+    </div>`;
+  hitungTotal();
+}
+
+function hitungTotal(){
+  const el=document.getElementById("mdTotal"); if(!el)return;
+  let n=0; for(const x of ["quiz","praktik","proyek","kehadiran"]){
+    const i=document.getElementById("mdB-"+x); if(i)n+=Number(i.value||0);}
+  el.textContent=n+"%"; el.style.color=(n===100)?"var(--ok)":"var(--bad)";
+}
+
+function rencanaDariForm(){
+  const r=JSON.parse(JSON.stringify(MOODLE.rencana));
+  r.kursus.fullname=document.getElementById("mdNama").value.trim();
+  r.kursus.shortname=document.getElementById("mdShort").value.trim().toUpperCase();
+  for(const x of ["quiz","praktik","proyek","kehadiran"])
+    r.penilaian.bobot[x]=Number(document.getElementById("mdB-"+x).value||0);
+  r.penilaian.nilai_lulus=Number(document.getElementById("mdLulus").value||70);
+  return r;
+}
+
+async function simpanRencana(){
+  const j=await post("/api/moodle-simpan",{project:aktif,rencana:rencanaDariForm()});
+  pesan(j.msg+((j.masalah||[]).length?" — "+j.masalah.join("; "):""));
+  await muatMoodle();
+}
+
+async function susunRencana(ulang){
+  if(ulang&&!confirm("Susun ulang rencana? Suntingan Anda pada rencana yang ada akan ditimpa."))return;
+  const batch=(document.getElementById("mdBatch")||{}).value||"";
+  const j=await post("/api/moodle-rencana",{project:aktif,batch,ulang:ulang?"ulang":""});
+  pesan(j.msg);
+}
+
+async function unggahMoodle(){
+  if(!confirm("Unggah ke Moodle sekarang?\n\nKursus BARU akan dibuat di LMS. "
+    +"Materi proyek tidak berubah."))return;
+  const log=document.getElementById("mdLog");
+  log.style.display="block"; log.textContent="Mengunggah…";
+  const j=await post("/api/moodle-unggah",{project:aktif,
+    kategori:document.getElementById("mdKat").value,
+    template:document.getElementById("mdTpl").value});
+  log.textContent=(j.log||[]).join("\n")+"\n\n"+(j.msg||"");
+  pesan(j.msg); await muatMoodle();
+}
 
 async function buatBahan(pertemuan){
   if(!confirm(pertemuan==="semua"

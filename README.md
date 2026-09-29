@@ -66,7 +66,7 @@ berlaku untuk semua point berikutnya.
 dieskalasi, dan semua pertanyaan yang dikumpulkan Reviewer dan Writer selama
 pertemuan itu.
 
-## Sembilan peran
+## Sepuluh peran
 
 | Peran | Tool | Luaran |
 |---|---|---|
@@ -78,6 +78,7 @@ pertemuan itu.
 | **Slide** | baca/tulis | `SLIDE.md` dari point final, tunduk batas kepadatan, logistik di catatan pengajar |
 | **Tugas** | baca/tulis + **Bash** | `LATIHAN.md`, `KUNCI.md`, `QUIZ_AIKEN.txt`, `PRAKTIK.md`, `lab/`. Solusi lab **wajib dieksekusi sampai lulus** |
 | **Aplikasi** | baca/tulis + **Bash** | `bahan/{README.md, awal/, jadi/}` — berkas kerja peserta: keadaan awal dan keadaan benar, dijalankan sampai berhasil |
+| **Moodle** | baca/tulis | `docs/MOODLE.json` — rencana unggah ke LMS: nama kursus, instruksi tugas, pertanyaan feedback, bobot penilaian |
 | **Editor** | baca/tulis | `GLOSARIUM.md` gabungan, `TELAAH_BAHASA.md`, penyeragaman istilah |
 
 Peran Tugas satu-satunya yang punya akses `Bash`, dan hanya Writer serta
@@ -312,6 +313,40 @@ pipeline, dan peran Tugas di dalamnya punya akses `Bash`. Kalau
 ```bash
 ssh -L 8770:127.0.0.1:8770 user@server
 ```
+
+## Moodle (opsional)
+
+Materi yang sudah jadi bisa diunggah ke Moodle lewat server MCP-nya. Butuh
+plugin **MoodlIA** terpasang di Moodle — core Moodle tidak bisa membuat activity
+maupun menulis berkas ke dalamnya.
+
+```bash
+python moodle.py          # periksa sambungan dan fungsi yang belum ada
+```
+
+Alurnya dua langkah, dan langkah pertama tidak menyentuh LMS sama sekali:
+
+```
+1. Peran MOODLE menyusun docs/MOODLE.json
+      nama kursus, judul section, instruksi tiap tugas,
+      pertanyaan feedback per hari, bobot penilaian + alasannya
+2. Tinjau dan sunting di tab Moodle, lalu Unggah
+      Python mengeksekusi rencana — tanpa model, hasilnya sama tiap kali
+```
+
+Yang terbentuk di Moodle, mengikuti komposisi proyek:
+
+```
+Day N   folder materi (handbook, slide, latihan, kunci, praktik, bahan.zip)
+        quiz dengan bank soal privatnya sendiri
+        tugas praktik (Assignment)
+        feedback harian
+General absensi — modul dibuat, sesinya diisi trainer
+Nilai   kategori Quiz / Praktik / Proyek / Kehadiran beserta bobot dan batas lulus
+```
+
+Setelannya di tab Pengaturan grup Moodle: URL server MCP, token, id kategori,
+dan id kursus template yang disalin.
 
 ## Telegram (opsional)
 

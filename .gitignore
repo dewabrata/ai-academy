@@ -18,3 +18,4 @@ logs/
 # dan silabus itu dokumen internal klien.
 contoh silabus/
 moodle-plugin/*.zip
+.moodle-tools.json

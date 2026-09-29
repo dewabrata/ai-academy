@@ -1540,6 +1540,86 @@ def berkas_belum_diserahkan(f: Path) -> list[str]:
     return list(dict.fromkeys(kurang))
 
 
+async def susun_rencana_moodle(ws: Path, batch: str, paksa: bool = False):
+    """Jalankan peran Moodle untuk menyusun docs/MOODLE.json.
+
+    Peran ini tidak menyentuh LMS. Ia hanya memutuskan hal yang butuh
+    pertimbangan — nama, kalimat instruksi tugas, pertanyaan feedback, dan bobot
+    penilaian — lalu menuliskannya sebagai rencana yang bisa ditinjau pemilik
+    proyek sebelum satu pun panggilan ke Moodle terjadi.
+    """
+    import moodle_unggah
+
+    berkas = ws / "docs" / moodle_unggah.BERKAS_RENCANA
+    if berkas.exists() and not paksa:
+        print(f">>> docs/{moodle_unggah.BERKAS_RENCANA} sudah ada — dipakai apa "
+              f"adanya. Pakai --moodle rencana-ulang untuk menyusun ulang.")
+        return
+
+    komp = moodle_unggah.komposisi(ws)
+    if not komp["pertemuan_siap"]:
+        raise StageFailed("Belum ada pertemuan yang materinya siap diunggah.")
+    if komp["pertemuan_kosong"]:
+        print(f">>> Pertemuan {komp['pertemuan_kosong']} belum punya materi — "
+              f"tidak ikut ke rencana.")
+
+    await run_stage_retry("MOODLE", prompt_moodle(ws, komp, batch),
+                          roles.MOODLE, ws, budget("MOODLE", 2.0),
+                          wilayah=ws / "docs")
+    if not berkas.exists():
+        raise StageFailed(f"MOODLE: docs/{moodle_unggah.BERKAS_RENCANA} tidak ditulis")
+
+    try:
+        rencana_ = json.loads(berkas.read_text(encoding="utf-8"))
+    except ValueError as e:
+        raise StageFailed(f"MOODLE: {berkas.name} bukan JSON yang sah: {e}") from e
+    masalah = moodle_unggah.periksa(rencana_, komp)
+    if masalah:
+        print(f">>> Rencana punya {len(masalah)} masalah:")
+        for m in masalah:
+            print(f"    - {m}")
+        print(">>> Perbaiki di dashboard, atau susun ulang dengan "
+              "--moodle rencana-ulang.")
+    else:
+        b = rencana_["penilaian"]["bobot"]
+        print(f">>> Rencana siap: {len(rencana_['pertemuan'])} pertemuan, bobot "
+              f"quiz {b['quiz']} / praktik {b['praktik']} / proyek {b['proyek']} "
+              f"/ kehadiran {b['kehadiran']}.")
+
+
+def prompt_moodle(ws: Path, komp: dict, batch: str) -> str:
+    import moodle_unggah
+
+    baris = []
+    for x in komp["pertemuan"]:
+        if not x["siap"]:
+            continue
+        punya = ", ".join(x["berkas"]) or "(tidak ada)"
+        baris.append(
+            f"- Pertemuan {x['no']}: \"{x['judul']}\"\n"
+            f"    jenis tugas : {'+'.join(x['jenis'])}\n"
+            f"    berkas      : {punya}\n"
+            f"    quiz        : {'ada QUIZ_AIKEN.txt' if x['quiz'] else 'tidak ada'}\n"
+            f"    praktik     : {'ada, PRAKTIK.md tersedia' if x['praktik'] else 'tidak ada'}\n"
+            f"    bahan kerja : {'ada' if x['bahan'] else 'tidak ada'}\n"
+            f"    lab kode    : {'ada' if x['lab'] else 'tidak ada'}")
+    return (
+        f"Susun rencana unggah Moodle untuk proyek ini.\n\n"
+        f"Nama batch dari pemilik proyek: {batch or '(belum diisi)'}\n\n"
+        f"Baca lebih dulu:\n"
+        f"- {_rel(ws, ws / 'docs' / 'KURIKULUM.md')}\n"
+        f"- {_rel(ws, ws / 'docs' / 'BLUEPRINT.md')}\n"
+        f"- PRAKTIK.md tiap pertemuan di {_rel(ws, ws / 'materi')}/pertemuan-NN/\n\n"
+        f"KOMPOSISI NYATA proyek ini — hanya yang tercantum di sini yang ada, "
+        f"jangan mengandaikan komponen lain:\n\n"
+        + "\n".join(baris)
+        + (f"\n\nPertemuan {komp['pertemuan_kosong']} belum punya materi dan "
+           f"TIDAK ikut ke rencana.\n" if komp["pertemuan_kosong"] else "\n")
+        + f"\nTulis rencananya ke "
+          f"{_rel(ws, ws / 'docs' / moodle_unggah.BERKAS_RENCANA)}, "
+          f"mengikuti bentuk di prompt peranmu. Hanya berkas itu luaranmu.")
+
+
 # ---------------------------------------------------------------------------
 # Pipeline
 # ---------------------------------------------------------------------------
@@ -1714,6 +1794,12 @@ def main():
     ap.add_argument("--slide", metavar="N|semua",
                     help="buat SLIDE.md menyusul untuk pertemuan N (atau 'semua'), "
                          "lalu berhenti — untuk proyek yang dibuat tanpa slide")
+    ap.add_argument("--moodle", metavar="AKSI",
+                    choices=["rencana", "rencana-ulang"],
+                    help="susun rencana unggah Moodle (docs/MOODLE.json), lalu "
+                         "berhenti. 'rencana-ulang' menimpa yang sudah ada")
+    ap.add_argument("--batch", default="",
+                    help="nama batch pelatihan, dipakai --moodle untuk menamai kursus")
     ap.add_argument("--bahan", metavar="N|semua",
                     help="bangun bahan/ (berkas kerja peserta) menyusul untuk "
                          "pertemuan N atau 'semua', lalu berhenti — point tidak "
@@ -1762,6 +1848,7 @@ def main():
 
     aksi = (f"slide:{a.slide}" if a.slide else
             f"bahan:{a.bahan}" if a.bahan else
+            f"moodle:{a.moodle}" if a.moodle else
             f"resume:{mulai}" if a.resume else "jalan")
     ok, pesan = lock_acquire(project, aksi)
     if not ok:
@@ -1776,7 +1863,8 @@ def main():
     print(f"Autentikasi : {auth_mode()}")
     print(f"Claude CLI  : {CLI_PATH or '(pencarian bawaan SDK)'}")
     awal_teks = ("slide susulan " + str(a.slide) if a.slide else
-                 "bahan susulan " + str(a.bahan) if a.bahan else mulai)
+                 "bahan susulan " + str(a.bahan) if a.bahan else
+                 "rencana Moodle" if a.moodle else mulai)
     print(f"Mulai dari  : {awal_teks}")
     print(f"Pilot       : point 1 {'pertemuan ' + str(a.pilot) if a.pilot else 'pertemuan pertama'}")
     print(f"Klien       : {'docs/KLIEN.md' if (ws / 'docs' / 'KLIEN.md').exists() else '-'}")
@@ -1797,6 +1885,9 @@ def main():
         elif a.bahan:
             nomor = None if str(a.bahan).lower() in ("semua", "all") else int(a.bahan)
             asyncio.run(tambah_bahan(ws, nomor))
+        elif a.moodle:
+            asyncio.run(susun_rencana_moodle(
+                ws, a.batch, paksa=a.moodle == "rencana-ulang"))
         else:
             asyncio.run(pipeline(ws, project, teks, mulai, a.pilot))
     except KeyboardInterrupt:
