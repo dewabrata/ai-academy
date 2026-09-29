@@ -282,6 +282,48 @@ def _moodle_pilihan() -> dict:
     }
 
 
+def _kategori_baru(b: dict) -> tuple[dict, int]:
+    """Buat satu kategori kursus. Tidak bisa dibatalkan dari sini.
+
+    Daftar putih di moodle.py sengaja tanpa fungsi penghapus, jadi kategori yang
+    salah ketik harus dihapus manusia lewat UI Moodle. Karena itu nama diperiksa
+    ketat di sini: kosong dan kembar ditolak sebelum dikirim.
+    """
+    nama = " ".join(str(b.get("nama") or "").split())
+    if not nama:
+        return {"ok": False, "msg": "Nama kategori belum diisi."}, 400
+    if len(nama) > 255:
+        return {"ok": False, "msg": "Nama kategori maksimal 255 karakter."}, 400
+    try:
+        induk = int(str(b.get("induk") or "0").strip() or 0)
+    except ValueError:
+        return {"ok": False, "msg": "Kategori induk harus angka."}, 400
+
+    pilihan = _moodle_pilihan()
+    if not pilihan.get("ok"):
+        return {"ok": False, "msg": pilihan.get("msg") or "Moodle tidak terjawab."}, 400
+    ada = {x["id"]: x["nama"] for x in pilihan["kategori"]}
+    kembar = next((i for i, n in ada.items() if n.strip().lower() == nama.lower()), None)
+    if kembar:
+        return {"ok": False, "msg": f"Kategori '{nama}' sudah ada (id {kembar}). "
+                                    f"Pilih yang itu saja."}, 400
+    if induk and induk not in ada:
+        return {"ok": False, "msg": f"Kategori induk id {induk} tidak ada."}, 400
+
+    try:
+        import moodle
+        k = moodle.Klien()
+        k.mulai()
+        hasil = k.wajib("core_course_create_categories",
+                        {"categories": [{"name": nama, "parent": induk}]},
+                        "buat kategori")
+    except moodle.MoodleError as e:
+        return {"ok": False, "msg": str(e)}, 400
+    kid = int(hasil[0]["id"])
+    return {"ok": True, "id": kid, "nama": nama,
+            "msg": f"Kategori '{nama}' dibuat (id {kid})."}, 200
+
+
 def _kursus_masih_ada(kursus_id: int) -> bool | None:
     """True/False, atau None kalau Moodle tidak bisa dihubungi.
 
@@ -495,6 +537,8 @@ class Handler(BaseHTTPRequestHandler):
             ok, msg = control.start(p, "moodle", str(b.get("ulang") or ""),
                                     env_tambahan={"BATCH": b.get("batch") or ""})
             return self._json({"ok": ok, "msg": msg}, 200 if ok else 400)
+        if u.path == "/api/moodle-kategori-baru":
+            return self._json(*_kategori_baru(b))
         if u.path == "/api/moodle-simpan":
             return self._json(*self._moodle_simpan(p, b))
         if u.path == "/api/moodle-unggah":
@@ -1560,9 +1604,24 @@ function gambarMoodle(){
     <div class="kartu"><h2>Unggah</h2>
       <div class="grid g2">
         <div><label>Kategori Moodle</label>
-          <select id="mdKat"><option value="">memuat dari Moodle…</option></select></div>
+          <div class="baris">
+            <select id="mdKat" style="flex:1"><option value="">memuat dari Moodle…</option></select>
+            <button class="kecil" onclick="formKategoriBaru()">+ baru</button>
+          </div></div>
         <div><label>Kursus template <span class="kecil">(opsional)</span></label>
           <select id="mdTpl"><option value="">memuat dari Moodle…</option></select></div>
+      </div>
+      <div id="mdKatBaru" style="display:none;margin-top:8px" class="kartu">
+        <label>Nama kategori baru</label>
+        <input id="mdKatNama" placeholder="mis. Internal Training Juaracoding - Dika">
+        <label style="margin-top:6px">Di dalam kategori</label>
+        <select id="mdKatInduk"></select>
+        <div class="baris" style="margin-top:8px">
+          <button onclick="buatKategori()">Buat kategori</button>
+          <button class="kecil" onclick="document.getElementById('mdKatBaru').style.display='none'">Batal</button>
+        </div>
+        <p class="kecil">Kategori yang terbuat <b>tidak bisa dihapus dari sini</b> —
+          salah ketik harus dirapikan lewat UI Moodle.</p>
       </div>
       <p class="kecil" id="mdPilihanPesan" style="margin-top:6px"></p>
       <p class="kecil">Kursus <b>selalu dibuat baru</b> dari materi proyek ini.
@@ -1601,6 +1660,35 @@ async function isiPilihanMoodle(s){
   tpl.innerHTML='<option value="">— tanpa template —</option>'+j.kursus.map(c=>
     `<option value="${c.id}" ${String(c.id)===String(s.template)?"selected":""}>${esc(c.nama.slice(0,60))} · ${esc(c.kode)}</option>`).join("");
   pesan.textContent=`${j.kategori.length} kategori dan ${j.kursus.length} kursus dibaca dari Moodle.`;
+}
+
+function formKategoriBaru(){
+  const kotak=document.getElementById("mdKatBaru");
+  if(kotak.style.display!=="none"){kotak.style.display="none";return;}
+  const kat=document.getElementById("mdKat"), induk=document.getElementById("mdKatInduk");
+  // Daftar induk mengikuti dropdown kategori yang sudah terisi, jadi tidak
+  // perlu menembak Moodle dua kali.
+  induk.innerHTML='<option value="0">— kategori teratas —</option>'+
+    [...kat.querySelectorAll("option")].filter(o=>o.value)
+      .map(o=>`<option value="${o.value}">${esc(o.textContent)}</option>`).join("");
+  kotak.style.display="";
+  document.getElementById("mdKatNama").focus();
+}
+
+async function buatKategori(){
+  const nama=document.getElementById("mdKatNama").value.trim();
+  const induk=document.getElementById("mdKatInduk").value;
+  if(!nama){pesan("Nama kategori belum diisi.");return;}
+  const j=await post("/api/moodle-kategori-baru",{nama:nama,induk:induk});
+  pesan(j.msg);
+  if(!j.ok)return;
+  document.getElementById("mdKatBaru").style.display="none";
+  document.getElementById("mdKatNama").value="";
+  // Ambil ulang daftar supaya kategori baru muncul, lalu langsung pilih.
+  const kat=document.getElementById("mdKat");
+  kat.insertAdjacentHTML("beforeend",
+    `<option value="${j.id}">${esc(j.nama)} (0 kursus)</option>`);
+  kat.value=String(j.id);
 }
 
 function hitungTotal(){

@@ -45,6 +45,7 @@ DIIZINKAN = {
     "local_moodlia_get_feedback_items",
     "local_moodlia_get_question_categories",
     # membuat & mengubah
+    "core_course_create_categories",
     "core_course_create_courses",
     "core_course_update_courses",
     "core_course_import_course",
