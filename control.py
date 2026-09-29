@@ -194,6 +194,18 @@ def start(project: str, action: str, text: str = "", pilot: int | None = None,
         return True, (f"Membuat slide untuk "
                       f"{'semua pertemuan' if nomor in ('semua', 'all') else 'pertemuan ' + nomor}.")
 
+    if action == "bahan":
+        if not (WS / project).exists():
+            return False, f"Proyek '{project}' tidak ada di workspace/."
+        nomor = (text or "semua").strip() or "semua"
+        if nomor not in ("semua", "all") and not nomor.isdigit():
+            return False, "Nomor pertemuan harus angka, atau 'semua'."
+        cmd += ["--project", project, "--bahan", nomor]
+        _spawn(cmd, project, env_tambahan)
+        return True, (f"Membangun berkas kerja peserta untuk "
+                      f"{'semua pertemuan' if nomor in ('semua', 'all') else 'pertemuan ' + nomor}. "
+                      f"Point dan handbook tidak disentuh.")
+
     if action == "baru":
         if (WS / project / "docs" / "STATE.txt").exists():
             return False, f"Proyek '{project}' sudah pernah dijalankan. Pakai nama lain."
@@ -491,6 +503,10 @@ def daftar_materi(project: str) -> list[dict]:
             "latihan": "LATIHAN.md" in berkas and "KUNCI.md" in berkas,
             "praktik": "PRAKTIK.md" in berkas,
             "lab": (f / "lab" / "solusi").exists(),
+            "bahan": (f / "bahan" / "jadi").exists(),
+            # Berapa berkas yang ditampilkan isinya di point tetapi tidak
+            # diserahkan. Angka inilah alasan tombol "Buat bahan kerja" muncul.
+            "bahan_kurang": _bahan_kurang(f),
             "quiz": "QUIZ_AIKEN.txt" in berkas,
             "disetujui": (f / ".GATE_OK").exists(),
             "unduh": [x for x in ("HANDBOOK.docx", "SLIDE.pptx", "LATIHAN.docx", "KUNCI.docx",
@@ -700,6 +716,26 @@ def _status_point(project: str) -> dict:
         return json.loads((WS / project / "docs" / "PRODUKSI.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
+
+
+def _bahan_kurang(f: Path) -> int:
+    """Jumlah berkas yang ditampilkan isinya di point tetapi belum diserahkan."""
+    try:
+        import pemeriksa
+    except Exception:
+        return 0
+    if not (f / "point").is_dir():
+        return 0
+    try:
+        ada = pemeriksa.berkas_diserahkan(f)
+        kurang = set()
+        for bp in (f / "point").glob("point-[0-9][0-9].md"):
+            for nama in pemeriksa.berkas_ditampilkan(bp.read_text(encoding="utf-8")):
+                if nama not in ada and Path(nama).name not in ada:
+                    kurang.add(nama)
+        return len(kurang)
+    except OSError:
+        return 0
 
 
 def _ringkas(project: str) -> dict:

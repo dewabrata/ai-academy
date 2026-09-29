@@ -290,7 +290,7 @@ Isi dashboard:
 | **Proyek** | Daftar semua proyek: tahap, jumlah pertemuan, biaya, waktu diubah, dan status. Aksi per proyek: Buka, Ganti nama, Duplikat setelan, Arsipkan. Di bawahnya tabel **Arsip** dengan Pulihkan dan Hapus permanen |
 | **Proyek baru** | Satu layar: seret-lepas silabus (atau tempel teksnya), konteks klien, nama proyek, pertemuan pilot, panjang point, maks. putaran, model, pilihan slide dan ekspor, serta preset **mutu maksimal** (tanpa plafon biaya) |
 | **Ringkasan** | Gate yang menunggu beserta pertanyaannya utuh, kemajuan per point (siap / proses / eskalasi), biaya, kuota, dan aktivitas |
-| **Materi** | Unduh **semua materi sebagai .zip** (atau per pertemuan), unduhan per berkas, tombol **Buat slide** untuk pertemuan yang belum punya slide, dan pembaca untuk point, handbook, serta catatan Reviewer dan Fact-Checker |
+| **Materi** | Unduh **semua materi sebagai .zip** (atau per pertemuan), unduhan per berkas, tombol **Buat slide** untuk pertemuan yang belum punya slide, tombol **Buat bahan kerja** beserta jumlah berkas yang materinya tampilkan tetapi belum diserahkan, dan pembaca untuk point, handbook, serta catatan Reviewer dan Fact-Checker |
 | **Berkas & opsi** | Unggah dan hapus silabus, unggah atau hapus konteks klien, dan mengubah opsi produksi proyek yang sudah ada |
 | **Pengaturan** | Menyunting `.env` dari UI: Telegram (dengan tombol kirim pesan uji), model, plafon, setelan point, dan akun dashboard |
 

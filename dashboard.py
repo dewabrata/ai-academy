@@ -435,6 +435,9 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/api/slide":
             ok, msg = control.start(p, "slide", str(b.get("pertemuan") or "semua"))
             return self._json({"ok": ok, "msg": msg}, 200 if ok else 400)
+        if u.path == "/api/bahan":
+            ok, msg = control.start(p, "bahan", str(b.get("pertemuan") or "semua"))
+            return self._json({"ok": ok, "msg": msg}, 200 if ok else 400)
         if u.path == "/api/terapkan-setelan":
             ok, msg = control.terapkan_setelan(p)
             return self._json({"ok": ok, "msg": msg}, 200 if ok else 400)
@@ -1206,13 +1209,17 @@ function gambarMateri(){
       <td style="white-space:nowrap">
         <a href="${zip("&pertemuan="+m.nama)}"><button>.zip</button></a>
         ${m.slide?"":`<button onclick="buatSlide('${m.nama.replace("pertemuan-","")}')">Buat slide</button>`}
+        ${m.bahan_kurang?`<button onclick="buatBahan('${m.nama.replace("pertemuan-","")}')"
+          title="${m.bahan_kurang} berkas ditampilkan di materi tetapi belum diserahkan"
+          >Buat bahan kerja (${m.bahan_kurang})</button>`:""}
       </td></tr>`).join("");
   const adaTanpaSlide=(D.materi||[]).some(m=>!m.slide&&m.point>0);
+  const kurangBahan=(D.materi||[]).reduce((n,m)=>n+(m.bahan_kurang||0),0);
   // Tab ini ikut disegarkan tiap 4 detik. Kalau innerHTML ditulis ulang tiap
   // kali, isi pembaca dan posisi scroll hilang — jadi hanya digambar ulang
   // kalau daftar berkasnya benar-benar berubah.
   const tanda=JSON.stringify([berkasAktif,
-    (D.materi||[]).map(m=>[m.nama,m.point,m.disetujui,m.slide,m.unduh.length]),
+    (D.materi||[]).map(m=>[m.nama,m.point,m.disetujui,m.slide,m.bahan_kurang,m.unduh.length]),
     (D.pohon||[]).map(p=>[p.nama,p.berkas.map(b=>[b.nama,b.kb])])]);
   if(tanda===materiTanda){gambarBaca();return;}
   materiTanda=tanda;
@@ -1222,6 +1229,7 @@ function gambarMateri(){
         <a href="${zip("")}"><button class="pri">Unduh semua materi (.zip)</button></a>
         <a href="${zip("&lengkap=1")}"><button>.zip termasuk catatan telaah</button></a>
         ${adaTanpaSlide?`<button onclick="buatSlide('semua')">Buat slide untuk semua pertemuan</button>`:""}
+        ${kurangBahan?`<button onclick="buatBahan('semua')">Buat bahan kerja untuk semua pertemuan (${kurangBahan} berkas)</button>`:""}
       </div>
       <table>
       <tr><th>Pertemuan</th><th>Point</th><th>Disetujui</th><th>Berkas</th><th></th></tr>
@@ -1241,6 +1249,14 @@ async function buatSlide(pertemuan){
       ?"Buat slide untuk semua pertemuan yang belum punya slide?\n\nIni memanggil model dan menambah biaya."
       :`Buat slide untuk pertemuan ${pertemuan}?\n\nIni memanggil model dan menambah biaya.`))return;
   const j=await post("/api/slide",{project:aktif,pertemuan});pesan(j.msg);muatDetail();}
+
+async function buatBahan(pertemuan){
+  if(!confirm(pertemuan==="semua"
+      ?"Bangun berkas kerja peserta untuk semua pertemuan?\n\nPoint, handbook, latihan, "
+       +"dan quiz TIDAK disentuh. Ini memanggil model dan menambah biaya."
+      :`Bangun berkas kerja peserta untuk pertemuan ${pertemuan}?\n\nPoint, handbook, `
+       +`latihan, dan quiz TIDAK disentuh. Ini memanggil model dan menambah biaya.`))return;
+  const j=await post("/api/bahan",{project:aktif,pertemuan});pesan(j.msg);muatDetail();}
 
 async function bukaBerkas(path){
   berkasAktif=path; gambarMateri();
