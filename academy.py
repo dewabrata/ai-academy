@@ -1163,10 +1163,12 @@ def prompt_paket(ws: Path, p: dict, peran: str) -> str:
         teks += f"\nLuaran wajibmu: {rel_f}/SLIDE.md, mengikuti format wajib di prompt-mu.\n"
     else:
         jenis = p["jenis"]
+        bahan = (p.get("bahan") or "").strip()
         teks += (f"\nJenis tugas pertemuan ini: {'+'.join(sorted(jenis))}.\n"
                  f"Luaran wajibmu di {rel_f}/: LATIHAN.md, KUNCI.md, QUIZ_AIKEN.txt"
                  + (", PRAKTIK.md" if "praktik" in jenis else "")
                  + (", folder lab/ (awal/, solusi/, README.md)" if "lab-kode" in jenis else "")
+                 + (", folder bahan/ (awal/, jadi/, README.md)" if bahan else "")
                  + ".\n")
         if "lab-kode" in jenis:
             teks += (f"Solusi lab WAJIB kamu eksekusi sampai berhasil. Batas percobaan "
@@ -1174,6 +1176,22 @@ def prompt_paket(ws: Path, p: dict, peran: str) -> str:
                      f"laporkan tahap ini gagal.\n")
         else:
             teks += "Jangan membuat folder lab/.\n"
+        if bahan:
+            teks += (f"\nBerkas kerja peserta yang diminta blueprint: {bahan}\n"
+                     f"Setiap berkas yang ISINYA ditampilkan di point pertemuan ini wajib "
+                     f"benar-benar ada di bahan/, dengan isi yang sama persis. Pemeriksa "
+                     f"otomatis menolak paket yang menampilkan berkas tanpa menyerahkannya.\n")
+            # Keadaan awal pertemuan ini = keadaan benar pertemuan sebelumnya.
+            # Tanpa path konkret, peran akan mengarang ulang kerangka yang
+            # berbeda dan kesinambungan antarhari putus.
+            jadi_lalu = folder_pertemuan(ws, p["no"] - 1) / "bahan" / "jadi"
+            if p["no"] > 1 and jadi_lalu.is_dir():
+                teks += (f"bahan/awal/ pertemuan ini BERANGKAT dari "
+                         f"{_rel(ws, jadi_lalu)} — salin isinya, lalu tandai bagian yang "
+                         f"dikerjakan di pertemuan ini dengan TODO(peserta). Jangan "
+                         f"mengarang kerangka baru.\n")
+        else:
+            teks += "Jangan membuat folder bahan/.\n"
     teks += ("\nKalau berkasmu sudah ada (paket dibangun ulang setelah point direvisi), "
              "sunting berkas yang ada sesuai perubahan point dan masukan — jangan tulis ulang "
              "dari nol.\n")
@@ -1246,7 +1264,8 @@ async def bangun_paket(ws: Path, p: dict):
         pemilik = []
         if "SLIDE" in revisi and OPSI["slide"]:
             pemilik.append(("SLIDE", roles.SLIDE, budget("SLIDE", 3.0)))
-        if any(x in revisi for x in ("LATIHAN", "KUNCI", "QUIZ", "AIKEN", "PRAKTIK", "LAB", "SOAL")):
+        if any(x in revisi for x in ("LATIHAN", "KUNCI", "QUIZ", "AIKEN", "PRAKTIK",
+                                     "LAB", "BAHAN", "SOAL")):
             pemilik.append(("TUGAS", roles.TUGAS, budget("TUGAS", 4.0)))
         if not pemilik:       # tidak jelas milik siapa: lebih baik keduanya membaca
             pemilik = [("TUGAS", roles.TUGAS, budget("TUGAS", 4.0))]
