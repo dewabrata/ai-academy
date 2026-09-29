@@ -85,7 +85,10 @@ KUNCI: dict[str, dict] = {
     # yang dibaca dari LMS. Yang disimpan tetap id-nya.
     "MOODLE_KATEGORI": dict(grup="Moodle", label="Kategori kursus bawaan",
                             tipe="moodle", sumber="kategori"),
-    "MOODLE_TEMPLATE": dict(grup="Moodle", label="Kursus template bawaan",
+    # Sengaja tanpa bawaan yang terisi: template milik satu pelatihan tertentu,
+    # sementara setelan ini berlaku untuk semua proyek. Nilai yang terisi di sini
+    # diam-diam menumpangkan isi pelatihan lama ke setiap materi baru.
+    "MOODLE_TEMPLATE": dict(grup="Moodle", label="Kursus template bawaan (opsional)",
                             tipe="moodle", sumber="kursus"),
 
     "ANTHROPIC_API_KEY": dict(grup="Autentikasi", label="API key (kosong = langganan)",

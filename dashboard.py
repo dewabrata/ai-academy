@@ -664,6 +664,19 @@ class Handler(BaseHTTPRequestHandler):
             if template and template not in {x["id"] for x in pilihan["kursus"]}:
                 return {"ok": False, "msg": f"Kursus template id {template} "
                                             f"tidak ada di Moodle."}, 400
+            # Shortname unik se-Moodle, bukan per kategori. Proyek kedua yang
+            # kebetulan menghasilkan kode sama membuat create_courses gagal
+            # dengan 'shortnametaken' — di sini pesannya masih bisa menyebut
+            # kursus mana yang memakainya.
+            sn = str((rencana_.get("kursus") or {}).get("shortname") or "").strip()
+            bentrok = next((x for x in pilihan["kursus"]
+                            if x["kode"].strip().upper() == sn.upper()), None)
+            if bentrok:
+                return {"ok": False, "msg":
+                        f"Kode kursus '{sn}' sudah dipakai oleh "
+                        f"'{bentrok['nama']}' (id {bentrok['id']}). "
+                        f"Ganti Kode kursus di atas — kode harus unik "
+                        f"se-Moodle, bukan hanya dalam kategori."}, 400
         catatan = []
         try:
             hasil = moodle_unggah.unggah(ws, rencana_, kategori, template,
@@ -1548,10 +1561,14 @@ function gambarMoodle(){
       <div class="grid g2">
         <div><label>Kategori Moodle</label>
           <select id="mdKat"><option value="">memuat dari Moodle…</option></select></div>
-        <div><label>Kursus template</label>
+        <div><label>Kursus template <span class="kecil">(opsional)</span></label>
           <select id="mdTpl"><option value="">memuat dari Moodle…</option></select></div>
       </div>
       <p class="kecil" id="mdPilihanPesan" style="margin-top:6px"></p>
+      <p class="kecil">Kursus <b>selalu dibuat baru</b> dari materi proyek ini.
+        Template hanya menumpangkan isi kursus lain di atasnya — berguna kalau ada
+        pengaturan atau halaman baku yang ingin ikut, dan sebaiknya
+        <b>dikosongkan</b> untuk materi yang berdiri sendiri.</p>
       <div class="baris" style="margin-top:12px">
         <button onclick="simpanRencana()">Simpan perubahan</button>
         <button onclick="susunRencana(true)">Susun ulang rencana</button>
