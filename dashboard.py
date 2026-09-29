@@ -249,6 +249,39 @@ def detail(project: str) -> dict:
 # ---------------------------------------------------------------------------
 # HTTP
 # ---------------------------------------------------------------------------
+def _moodle_pilihan() -> dict:
+    """Kategori dan kursus di Moodle, untuk dipilih dari namanya.
+
+    Diambil lewat endpoint tersendiri, bukan ikut memuat tab: daftar kursus bisa
+    ratusan dan Moodle bisa lambat, sementara sisa tab tidak perlu menunggunya.
+    """
+    try:
+        import moodle
+        k = moodle.Klien()
+        k.mulai()
+    except Exception as e:
+        return {"ok": False, "msg": f"Moodle tidak bisa dihubungi: {e}"}
+    kat, galat = k.panggil("core_course_get_categories",
+                           {"criteria": [], "addsubcategories": 0})
+    if galat:
+        return {"ok": False, "msg": f"Gagal membaca kategori: {galat}"}
+    kur, galat = k.panggil("core_course_get_courses", {"options": {}})
+    if galat:
+        kur = []
+    return {
+        "ok": True,
+        "kategori": sorted(
+            [{"id": c["id"], "nama": c.get("name", ""),
+              "jumlah": c.get("coursecount", 0)} for c in (kat or [])],
+            key=lambda x: x["nama"].lower()),
+        "kursus": sorted(
+            [{"id": c["id"], "nama": c.get("fullname", ""),
+              "kode": c.get("shortname", ""), "kategori": c.get("categoryid")}
+             for c in (kur or []) if c.get("id") != 1],
+            key=lambda x: x["nama"].lower()),
+    }
+
+
 def _kursus_masih_ada(kursus_id: int) -> bool | None:
     """True/False, atau None kalau Moodle tidak bisa dihubungi.
 
@@ -373,6 +406,8 @@ class Handler(BaseHTTPRequestHandler):
         if not self._sesi_ok():
             return self._json({"error": "Belum masuk.", "login": True}, 401)
 
+        if u.path == "/api/moodle-pilihan":
+            return self._json(_moodle_pilihan())
         if u.path == "/api/moodle":
             return self._json(self._moodle_keadaan(q.get("project", "")))
         if u.path == "/api/proyek":
@@ -600,13 +635,35 @@ class Handler(BaseHTTPRequestHandler):
             rencana_ = json.loads(p.read_text(encoding="utf-8"))
         except ValueError as e:
             return {"ok": False, "msg": f"Rencana bukan JSON yang sah: {e}"}, 400
+        # Kolom yang ADA tetapi kosong berarti "belum dipilih", bukan "pakai
+        # bawaan". Membedakan keduanya penting: kalau kosong jatuh ke .env,
+        # menekan Unggah tanpa memilih kategori tetap membuat kursus, di tempat
+        # yang tidak diniatkan.
+        def _id(kunci: str, env: str) -> int:
+            if kunci in b:
+                nilai = str(b.get(kunci) or "").strip()
+            else:
+                nilai = (os.getenv(env) or "").strip()
+            return int(nilai) if nilai else 0
+
         try:
-            kategori = int(b.get("kategori") or os.getenv("MOODLE_KATEGORI") or 0)
-            template = int(b.get("template") or os.getenv("MOODLE_TEMPLATE") or 0)
+            kategori = _id("kategori", "MOODLE_KATEGORI")
+            template = _id("template", "MOODLE_TEMPLATE")
         except ValueError:
             return {"ok": False, "msg": "Id kategori/template harus angka."}, 400
         if not kategori:
-            return {"ok": False, "msg": "Id kategori Moodle belum diisi."}, 400
+            return {"ok": False, "msg": "Kategori Moodle belum dipilih."}, 400
+        # Id diperiksa ke Moodle lebih dulu. Kategori yang tidak ada membuat
+        # core_course_create_courses gagal di tengah, setelah rencana dianggap
+        # sah — lebih baik ditolak sebelum apa pun dibuat.
+        pilihan = _moodle_pilihan()
+        if pilihan.get("ok"):
+            if kategori not in {x["id"] for x in pilihan["kategori"]}:
+                return {"ok": False, "msg": f"Kategori id {kategori} tidak ada "
+                                            f"di Moodle."}, 400
+            if template and template not in {x["id"] for x in pilihan["kursus"]}:
+                return {"ok": False, "msg": f"Kursus template id {template} "
+                                            f"tidak ada di Moodle."}, 400
         catatan = []
         try:
             hasil = moodle_unggah.unggah(ws, rencana_, kategori, template,
@@ -1489,11 +1546,12 @@ function gambarMoodle(){
 
     <div class="kartu"><h2>Unggah</h2>
       <div class="grid g2">
-        <div><label>Id kategori Moodle</label>
-          <input id="mdKat" value="${esc(s.kategori||"")}"></div>
-        <div><label>Id kursus template</label>
-          <input id="mdTpl" value="${esc(s.template||"")}"></div>
+        <div><label>Kategori Moodle</label>
+          <select id="mdKat"><option value="">memuat dari Moodle…</option></select></div>
+        <div><label>Kursus template</label>
+          <select id="mdTpl"><option value="">memuat dari Moodle…</option></select></div>
       </div>
+      <p class="kecil" id="mdPilihanPesan" style="margin-top:6px"></p>
       <div class="baris" style="margin-top:12px">
         <button onclick="simpanRencana()">Simpan perubahan</button>
         <button onclick="susunRencana(true)">Susun ulang rencana</button>
@@ -1505,6 +1563,27 @@ function gambarMoodle(){
       <pre id="mdLog" style="margin-top:10px;display:none"></pre>
     </div>`;
   hitungTotal();
+  isiPilihanMoodle(s);
+}
+
+async function isiPilihanMoodle(s){
+  const kat=document.getElementById("mdKat"), tpl=document.getElementById("mdTpl");
+  if(!kat||!tpl)return;
+  const pesan=document.getElementById("mdPilihanPesan");
+  const j=await api("/api/moodle-pilihan");
+  if(!j.ok){
+    // Tanpa daftar, id tetap bisa diisi tangan supaya Moodle yang sedang
+    // bermasalah tidak mengunci fitur ini sama sekali.
+    kat.outerHTML='<input id="mdKat" placeholder="id kategori" value="'+(s.kategori||"")+'">';
+    tpl.outerHTML='<input id="mdTpl" placeholder="id template" value="'+(s.template||"")+'">';
+    pesan.innerHTML='<b>'+esc(j.msg||"Daftar tidak bisa diambil")+'</b> — isi id-nya manual.';
+    return;
+  }
+  kat.innerHTML=j.kategori.map(c=>
+    `<option value="${c.id}" ${String(c.id)===String(s.kategori)?"selected":""}>${esc(c.nama)} (${c.jumlah} kursus)</option>`).join("");
+  tpl.innerHTML='<option value="">— tanpa template —</option>'+j.kursus.map(c=>
+    `<option value="${c.id}" ${String(c.id)===String(s.template)?"selected":""}>${esc(c.nama.slice(0,60))} · ${esc(c.kode)}</option>`).join("");
+  pesan.textContent=`${j.kategori.length} kategori dan ${j.kursus.length} kursus dibaca dari Moodle.`;
 }
 
 function hitungTotal(){
