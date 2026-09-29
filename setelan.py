@@ -25,7 +25,7 @@ ENV = Path(__file__).parent / ".env"
 # termasuk saat dipakai dari skrip kecil yang tidak memanggil load_dotenv sendiri.
 load_dotenv(ENV)
 
-# grup, label, tipe (teks|angka|sandi|pilihan), pilihan
+# grup, label, tipe (teks|angka|sandi|pilihan|moodle), pilihan, sumber
 KUNCI: dict[str, dict] = {
     "TELEGRAM_BOT_TOKEN": dict(grup="Telegram", label="Bot token", tipe="sandi"),
     "TELEGRAM_CHAT_ID": dict(grup="Telegram", label="Chat ID", tipe="teks"),
@@ -81,8 +81,12 @@ KUNCI: dict[str, dict] = {
 
     "MOODLE_MCP_URL": dict(grup="Moodle", label="URL server MCP", tipe="teks"),
     "MOODLE_TOKEN": dict(grup="Moodle", label="Token web service", tipe="sandi"),
-    "MOODLE_KATEGORI": dict(grup="Moodle", label="Id kategori kursus", tipe="angka"),
-    "MOODLE_TEMPLATE": dict(grup="Moodle", label="Id kursus template", tipe="angka"),
+    # tipe "moodle": isian id, tetapi dashboard menggantinya dengan daftar nama
+    # yang dibaca dari LMS. Yang disimpan tetap id-nya.
+    "MOODLE_KATEGORI": dict(grup="Moodle", label="Kategori kursus bawaan",
+                            tipe="moodle", sumber="kategori"),
+    "MOODLE_TEMPLATE": dict(grup="Moodle", label="Kursus template bawaan",
+                            tipe="moodle", sumber="kursus"),
 
     "ANTHROPIC_API_KEY": dict(grup="Autentikasi", label="API key (kosong = langganan)",
                               tipe="sandi"),

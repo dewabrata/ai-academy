@@ -1646,6 +1646,37 @@ async function bukaBerkas(path){
 
 async function muatSetelan(){
   const j=await api("/api/setelan"); SET=j.setelan||[]; gambarSetelan();
+  isiSetelanMoodle();
+}
+
+async function isiSetelanMoodle(){
+  const kolom=[...document.querySelectorAll("#setelan select[data-sumber]")];
+  if(!kolom.length)return;
+  const j=await api("/api/moodle-pilihan");
+  for(const el of kolom){
+    const nilai=el.value;
+    if(!j.ok){
+      // LMS tidak terjawab: kembalikan ke isian id supaya setelan tetap
+      // bisa diubah, dan katakan kenapa daftarnya tidak muncul.
+      el.outerHTML='<input id="'+el.id+'" value="'+esc(nilai)+'" '+
+        'title="'+esc(j.msg||"")+'" placeholder="id — daftar nama tidak bisa diambil">';
+      continue;
+    }
+    const daftar=el.dataset.sumber==="kategori"
+      ? j.kategori.map(c=>[c.id, c.nama+" ("+c.jumlah+" kursus)"])
+      : j.kursus.map(c=>[c.id, c.nama.slice(0,60)+" · "+c.kode]);
+    const kosong=el.dataset.sumber==="kategori"
+      ? "— belum dipilih —" : "— tanpa template —";
+    el.innerHTML='<option value="">'+kosong+'</option>'+
+      daftar.map(([id,teks])=>
+        `<option value="${id}" ${String(id)===String(nilai)?"selected":""}>${esc(teks)}</option>`).join("");
+    // Id yang tersimpan tetapi kursusnya sudah tidak ada tidak boleh hilang
+    // diam-diam — kalau lenyap, unggahan berikutnya gagal tanpa sebab jelas.
+    if(nilai && el.value!==String(nilai)){
+      el.insertAdjacentHTML("afterbegin",
+        `<option value="${esc(nilai)}" selected>id ${esc(nilai)} — sudah tidak ada di Moodle</option>`);
+    }
+  }
 }
 function gambarSetelan(){
   const grup={};
@@ -1655,6 +1686,13 @@ function gambarSetelan(){
     if(s.tipe==="pilihan")
       return `<div><label>${esc(s.label)}</label><select id="${id}">
         ${s.pilihan.map(p=>`<option${p===s.nilai?" selected":""}>${esc(p)}</option>`).join("")}</select></div>`;
+    if(s.tipe==="moodle")
+      // Diisi setelah kartu tergambar; nilai sekarang ditahan di option
+      // sementara supaya tidak hilang kalau daftar gagal diambil.
+      return `<div><label>${esc(s.label)}</label>
+        <select id="${id}" data-sumber="${esc(s.sumber||"")}">
+          <option value="${esc(s.nilai)}" selected>${s.nilai?"id "+esc(s.nilai):"— kosong —"} · memuat…</option>
+        </select></div>`;
     const ph=s.tipe==="sandi"?(s.terisi?"terisi — kosongkan untuk membiarkan":"belum diisi"):"";
     return `<div><label>${esc(s.label)}${s.tipe==="sandi"&&s.terisi?' <span class="pil ok">terisi</span>':""}</label>
       <input id="${id}" ${s.tipe==="sandi"?'type="password"':""} value="${esc(s.nilai)}" placeholder="${esc(ph)}"></div>`;};
