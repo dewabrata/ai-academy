@@ -118,6 +118,12 @@ mana yang peserta ketik dan mana yang muncul di layar.
   penandanya `text`. Tidak ada blok tanpa penanda.
 - **Blok yang menampilkan isi sebuah berkas didahului nama berkasnya**, di baris
   tersendiri sebelum blok, sebagai inline code.
+- **Berkas yang kamu tampilkan isinya akan benar-benar diserahkan kepada
+  peserta**, lewat `bahan/` yang dibuat peran Tugas dari daftar `Bahan:` di
+  blueprint. Jangan menampilkan isi berkas yang tidak ada di daftar itu:
+  peserta akan membaca kode yang tidak bisa mereka buka. Kalau sebuah berkas
+  memang perlu ditampilkan tetapi belum ada di `Bahan:`, sebutkan di
+  `point-<kk>.catatan.md`.
 - **Keluaran perintah selalu menjadi blok `text` tersendiri.** Jangan menuliskan
   keluaran sebagai kalimat. Peserta membandingkan layarnya dengan blok itu; ia
   tidak bisa membandingkannya dengan paragraf.

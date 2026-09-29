@@ -10,6 +10,7 @@ Bisa juga dijalankan sendiri:
 
     python exporter.py workspace/<proyek>
 """
+import csv
 import re
 import sys
 from pathlib import Path
@@ -401,6 +402,103 @@ def md_ke_pptx(md: Path, keluar: Path) -> tuple[Path, list[str]]:
 
 
 # ---------------------------------------------------------------------------
+# CSV -> XLSX
+# ---------------------------------------------------------------------------
+def csv_ke_xlsx(sumber: Path, keluar: Path | None = None) -> Path:
+    """Ubah satu berkas .csv menjadi .xlsx.
+
+    Peran menulis .csv, bukan .xlsx, dengan alasan yang sama seperti Markdown ->
+    DOCX: sumbernya bisa dibaca dan ditelaah, revisi cukup mengubah teksnya, dan
+    binernya tidak pernah menyimpang dari sumbernya.
+
+    Angka ditulis sebagai angka, bukan teks, supaya peserta bisa langsung
+    menjumlahkannya di spreadsheet — itu inti latihannya.
+    """
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font
+        from openpyxl.utils import get_column_letter
+    except ImportError as e:
+        raise ExportError("Butuh openpyxl: pip install -r requirements.txt") from e
+
+    if not sumber.exists():
+        raise ExportError(f"Sumber tidak ada: {sumber}")
+    keluar = keluar or sumber.with_suffix(".xlsx")
+
+    # utf-8-sig: berkas CSV dari Excel kerap berawalan BOM, dan tanpa ini BOM
+    # itu menempel ke judul kolom pertama.
+    with sumber.open("r", encoding="utf-8-sig", newline="") as fh:
+        contoh = fh.read(4096)
+        fh.seek(0)
+        try:
+            dialek = csv.Sniffer().sniff(contoh, delimiters=",;\t|")
+        except csv.Error:
+            dialek = csv.excel            # satu kolom, atau terlalu pendek untuk ditebak
+        baris = list(csv.reader(fh, dialek))
+
+    if not baris:
+        raise ExportError(f"CSV kosong: {sumber.name}")
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = sumber.stem[:31] or "Sheet1"        # batas nama sheet Excel
+    for sel in baris:
+        ws.append([_nilai_sel(x) for x in sel])
+
+    for sel in ws[1]:
+        sel.font = Font(bold=True)
+    ws.freeze_panes = "A2"
+
+    # Lebar kolom disetel kasar dari isi terpanjang; tanpa ini seluruh kolom
+    # selebar 8 karakter dan judulnya terpotong.
+    for i in range(1, ws.max_column + 1):
+        lebar = max((len(str(c.value)) for c in ws[get_column_letter(i)]
+                     if c.value is not None), default=8)
+        ws.column_dimensions[get_column_letter(i)].width = min(max(lebar + 2, 9), 48)
+
+    keluar.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        wb.save(str(keluar))
+    except Exception as e:
+        raise ExportError(f"Gagal menyimpan {keluar.name}: {e}") from e
+    return keluar
+
+
+def _nilai_sel(teks: str):
+    """Angka menjadi angka, sisanya tetap teks.
+
+    Dikenali dua gaya penulisan desimal: 1234.5 dan 1.234,5 — silabus Indonesia
+    memakai keduanya. Yang berawalan nol (00123) dibiarkan teks karena itu
+    biasanya kode, bukan bilangan.
+    """
+    s = (teks or "").strip()
+    if not s:
+        return None
+    if re.fullmatch(r"-?0\d+", s):
+        return s
+    kandidat = s
+    if re.fullmatch(r"-?\d{1,3}(\.\d{3})+(,\d+)?", s):      # 1.234.567,89
+        kandidat = s.replace(".", "").replace(",", ".")
+    elif re.fullmatch(r"-?\d{1,3}(,\d{3})+(\.\d+)?", s):    # 1,234,567.89
+        kandidat = s.replace(",", "")
+    elif re.fullmatch(r"-?\d+,\d+", s):                     # 1234,5
+        kandidat = s.replace(",", ".")
+    try:
+        angka = float(kandidat)
+    except ValueError:
+        return s
+    return int(angka) if angka.is_integer() and "." not in kandidat else angka
+
+
+def ekspor_csv(folder: Path) -> list[Path]:
+    """Hasilkan .xlsx untuk setiap .csv di bawah `folder`."""
+    dibuat = []
+    for csv_path in sorted(folder.rglob("*.csv")):
+        dibuat.append(csv_ke_xlsx(csv_path))
+    return dibuat
+
+
+# ---------------------------------------------------------------------------
 # Satu pertemuan / satu proyek
 # ---------------------------------------------------------------------------
 def gabung_handbook(folder: Path, judul: str) -> Path:
@@ -433,8 +531,8 @@ def gabung_handbook(folder: Path, judul: str) -> Path:
     return keluar
 
 
-def ekspor_pertemuan(folder: Path, docx: bool = True,
-                     pptx: bool = True) -> tuple[list[Path], list[str]]:
+def ekspor_pertemuan(folder: Path, docx: bool = True, pptx: bool = True,
+                     xlsx: bool = True) -> tuple[list[Path], list[str]]:
     """Hasilkan ulang biner untuk satu folder pertemuan.
 
     `docx`/`pptx` salah = konversi dilewati; sumber Markdown-nya tetap ada dan
@@ -455,6 +553,10 @@ def ekspor_pertemuan(folder: Path, docx: bool = True,
         path, t = md_ke_pptx(slide, folder / "SLIDE.pptx")
         dibuat.append(path)
         temuan += [f"{folder.name}: {x}" for x in t]
+    # Berkas kerja peserta: .csv ditulis peran, .xlsx dihasilkan di sini.
+    bahan = folder / "bahan"
+    if xlsx and bahan.is_dir():
+        dibuat += ekspor_csv(bahan)
     return dibuat, temuan
 
 

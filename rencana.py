@@ -69,6 +69,20 @@ def urai_jenis(teks: str) -> set[str]:
     return jenis or {"praktik"}
 
 
+def urai_bahan(teks: str) -> str:
+    """Isi baris `Bahan:` di bagian Tugas blueprint.
+
+    String kosong berarti pertemuan ini tidak memerlukan berkas kerja — baik
+    karena blueprint menulis `tidak`, maupun karena barisnya belum ada sama
+    sekali (blueprint lama). Pemeriksaan bahan tidak berlaku untuk keduanya.
+    """
+    m = re.search(r"^\W*Bahan\W*:\s*(.+)$", teks, re.I | re.M)
+    nilai = (m.group(1) if m else "").strip()
+    if nilai.lower() in ("", "tidak", "tidak ada", "-", "none"):
+        return ""
+    return nilai
+
+
 def daftar_pertemuan(ws: Path, laporkan=print) -> list[dict]:
     """Daftar pertemuan dari docs/BLUEPRINT.md: nomor, judul, point, jenis tugas.
 
@@ -92,5 +106,6 @@ def daftar_pertemuan(ws: Path, laporkan=print) -> list[dict]:
         potong = isi[m.end():cocok[i + 1].start() if i + 1 < len(cocok) else len(isi)]
         hasil.append({"no": no, "judul": m.group(2).strip() or "(tanpa judul)",
                       "point": urai_point(subbagian(potong, "Point")),
-                      "jenis": urai_jenis(subbagian(potong, "Tugas"))})
+                      "jenis": urai_jenis(subbagian(potong, "Tugas")),
+                      "bahan": urai_bahan(subbagian(potong, "Tugas"))})
     return hasil

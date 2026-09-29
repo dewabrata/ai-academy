@@ -113,6 +113,7 @@ daftar bernomor kedua akan diproduksi sebagai point tambahan.
 ```
 ### Tugas
 Jenis: praktik
+Bahan: aplikasi pengingat tagihan — keadaan setelah pertemuan 1, dan hasil benar setelah pertemuan ini
 ```
 
 `Jenis` salah satu dari: `praktik`, `lab-kode`, atau `praktik+lab-kode`.
@@ -122,6 +123,24 @@ Jenis: praktik
   di aplikasi), `lab-kode` untuk materi yang pesertanya menulis kode.
 - Di bawahnya, tulis tujuan tugas dalam satu kalimat dan capaian yang
   dilatihnya. Untuk `lab-kode`, sebut bahasa/versi dan berkas yang harus ada.
+
+`Bahan` menyebut **berkas kerja yang dibuka peserta**: keadaan awal yang mereka
+terima, dan keadaan benar sesudah pekerjaan pertemuan itu selesai. Tulis
+`Bahan: tidak` kalau pertemuan ini memang tidak memerlukannya.
+
+- Materi yang membangun aplikasi: sebut aplikasi dan bagian mana yang dikerjakan
+  di pertemuan ini. Peserta menerima kode awal dan kode benar, bukan hanya
+  potongan kode di handbook.
+- Materi yang mengolah data: sebut berkas datanya, mis. rekap mentah yang
+  berantakan dan hasil rapinya.
+- **Bahan berlanjut antarpertemuan.** Keadaan awal pertemuan berikutnya adalah
+  keadaan benar pertemuan sebelumnya. Sebut kesinambungan itu, supaya peserta
+  yang tertinggal satu hari tetap bisa ikut dari berkas yang benar.
+
+Kesalahan yang paling merugikan di sini adalah menceritakan aplikasi tanpa
+menyerahkannya. Setiap berkas yang isinya nanti **ditampilkan** di handbook
+harus termasuk dalam `Bahan`; kalau tidak, peserta membaca kode yang tidak bisa
+mereka buka dan tidak punya pembanding untuk memeriksa hasil kerjanya.
 
 Latihan soal, kunci, dan quiz 10 soal AIKEN selalu dibuat di setiap pertemuan;
 tidak perlu disebut.

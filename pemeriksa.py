@@ -14,6 +14,7 @@ tetap tugas Reviewer.
     python pemeriksa.py workspace/<proyek>
     python pemeriksa.py --bandingkan workspace/uji-baseline workspace/uji-v2
 """
+import csv
 import json
 import re
 import shutil
@@ -230,6 +231,71 @@ def in_class_point(bagian: str) -> list[dict]:
     return hasil
 
 
+# Berkas yang ISINYA ditampilkan: nama berkas di antara backtick pada baris
+# tepat sebelum blok kode. Hanya bentuk inilah yang dijanjikan kepada peserta
+# sebagai berkas yang bisa dibuka; penyebutan biasa di tengah kalimat tidak.
+_NAMA_BERKAS = re.compile(
+    r"`([A-Za-z0-9_./-]+\.(?:js|mjs|cjs|ts|py|json|ya?ml|csv|sh|sql|md|txt|html|css))`")
+
+
+def berkas_ditampilkan(teks: str) -> list[str]:
+    """Nama berkas yang diikuti blok kode di baris berikutnya."""
+    baris = teks.splitlines()
+    hasil: list[str] = []
+    for i, b in enumerate(baris):
+        if not b.lstrip().startswith("```"):
+            continue
+        # Lihat ke atas, lewati baris kosong, sampai baris teks terdekat.
+        j = i - 1
+        while j >= 0 and not baris[j].strip():
+            j -= 1
+        if j < 0:
+            continue
+        nama = _NAMA_BERKAS.findall(baris[j])
+        # Satu nama saja yang dianggap judul blok. Baris dengan beberapa nama
+        # berkas adalah kalimat biasa, bukan penanda isi berkas.
+        if len(nama) == 1 and len(baris[j].strip()) < 120:
+            hasil.append(nama[0])
+    return list(dict.fromkeys(hasil))
+
+
+def _kolom_csv_tidak_sama(csv_path: Path) -> str:
+    """Keterangan singkat kalau jumlah kolom CSV tidak seragam, atau '' kalau rapi."""
+    try:
+        with csv_path.open("r", encoding="utf-8-sig", newline="") as fh:
+            contoh = fh.read(4096)
+            fh.seek(0)
+            try:
+                dialek = csv.Sniffer().sniff(contoh, delimiters=",;\t|")
+            except csv.Error:
+                dialek = csv.excel
+            baris = [b for b in csv.reader(fh, dialek) if any(x.strip() for x in b)]
+    except (OSError, csv.Error) as e:
+        return f"tidak terbaca ({e})"
+    if not baris:
+        return "kosong"
+    lebar = len(baris[0])
+    beda = [i for i, b in enumerate(baris[1:], 2) if len(b) != lebar]
+    if beda:
+        return (f"judul {lebar} kolom, tetapi baris "
+                f"{', '.join(map(str, beda[:3]))} berbeda")
+    return ""
+
+
+def berkas_diserahkan(f: Path) -> set[str]:
+    """Nama berkas yang benar-benar ada di bahan/ dan lab/ pertemuan ini."""
+    out: set[str] = set()
+    for sub in ("bahan", "lab"):
+        akar = f / sub
+        if not akar.is_dir():
+            continue
+        for x in akar.rglob("*"):
+            if x.is_file():
+                out.add(x.name)
+                out.add(x.relative_to(akar).as_posix())
+    return out
+
+
 def _pecah_soal(latihan: str) -> list[tuple[str, str]]:
     cocok = list(AWAL_SOAL.finditer(latihan))
     # Soal memakai bentuk penanda terkuat di berkas: judul "### Soal N", lalu
@@ -435,6 +501,48 @@ def periksa_pertemuan(ws: Path, p: dict) -> list[dict]:
         h.append(_hasil("bentuk tulisan", GAGAL if rinci else LULUS,
                         (f"{len(rinci)} pelanggaran di {titik} point — "
                          + "; ".join(x[:110] for x in rinci[:3])) if rinci else "",
+                        f"{rel}/point"))
+
+    # 8c. Berkas kerja peserta sesuai deklarasi blueprint
+    bahan = f / "bahan"
+    diminta = (p.get("bahan") or "").strip()
+    if not diminta:
+        h.append(_hasil("bahan kerja", TAK_BERLAKU,
+                        "blueprint tidak meminta berkas kerja untuk pertemuan ini"))
+    else:
+        kurang = []
+        for nama in ("README.md", "awal", "jadi"):
+            jalur = bahan / nama
+            if not jalur.exists():
+                kurang.append(f"bahan/{nama}")
+            elif jalur.is_dir() and not any(x.is_file() for x in jalur.rglob("*")):
+                kurang.append(f"bahan/{nama}/ kosong")
+        # CSV yang jumlah kolomnya tidak sama menghasilkan spreadsheet yang
+        # kolomnya melenceng, dan peserta menyalahkan dirinya sendiri.
+        for csv_path in sorted(bahan.rglob("*.csv")):
+            rusak = _kolom_csv_tidak_sama(csv_path)
+            if rusak:
+                kurang.append(f"{csv_path.name}: {rusak}")
+        h.append(_hasil("bahan kerja", GAGAL if kurang else LULUS,
+                        ("hilang: " + ", ".join(kurang)) if kurang
+                        else f"{sum(1 for x in bahan.rglob('*') if x.is_file())} berkas",
+                        f"{rel}/bahan"))
+
+    # 8d. Berkas yang ditampilkan isinya harus benar-benar diserahkan.
+    # Tanpa ini materi bisa menceritakan aplikasi yang tidak pernah ada, dan
+    # peserta membaca kode yang tidak bisa mereka buka.
+    ada = berkas_diserahkan(f)
+    disebut: dict[str, list[str]] = {}
+    for bp in sorted((f / "point").glob("point-[0-9][0-9].md")):
+        for nama in berkas_ditampilkan(_baca(bp)):
+            if nama not in ada and Path(nama).name not in ada:
+                disebut.setdefault(nama, []).append(bp.name)
+    if not (f / "point").is_dir():
+        h.append(_hasil("berkas dirujuk ada", TAK_BERLAKU, "tidak ada berkas point"))
+    else:
+        h.append(_hasil("berkas dirujuk ada", GAGAL if disebut else LULUS,
+                        (f"{len(disebut)} berkas ditampilkan isinya tetapi tidak "
+                         f"diserahkan: " + ", ".join(list(disebut)[:5])) if disebut else "",
                         f"{rel}/point"))
 
     # 9. Alokasi menit per point vs langkah yang dikerjakan di kelas

@@ -1194,7 +1194,8 @@ def ekspor_satu(ws: Path, p: dict) -> list[str]:
     try:
         exporter.gabung_handbook(f, f"Pertemuan {p['no']} — {p['judul']}")
         dibuat, padat = exporter.ekspor_pertemuan(
-            f, docx=OPSI["ekspor_docx"], pptx=OPSI["ekspor_pptx"])
+            f, docx=OPSI["ekspor_docx"], pptx=OPSI["ekspor_pptx"],
+            xlsx=OPSI["ekspor_xlsx"])
         monitor.emit("export", label=f"PERTEMUAN-{p['no']:02d}",
                      berkas=[x.name for x in dibuat], padat=padat)
         return []

@@ -61,6 +61,8 @@ KUNCI: dict[str, dict] = {
                              pilihan=["1", "0"]),
     "OPSI_EKSPOR_PPTX": dict(grup="Produksi", label="Ekspor PPTX (bawaan)", tipe="pilihan",
                              pilihan=["1", "0"]),
+    "OPSI_EKSPOR_XLSX": dict(grup="Produksi", label="Ekspor XLSX (bawaan)", tipe="pilihan",
+                             pilihan=["1", "0"]),
 
     "QUOTA_WAIT": dict(grup="Kuota", label="Saat kuota habis", tipe="pilihan",
                        pilihan=["auto", "ask"]),

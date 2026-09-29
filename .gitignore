@@ -14,3 +14,6 @@ workspace/
 status.json
 events.jsonl
 logs/
+# Silabus klien yang dipakai untuk mencoba pipeline. Repo ini publik,
+# dan silabus itu dokumen internal klien.
+contoh silabus/

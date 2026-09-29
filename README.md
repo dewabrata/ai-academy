@@ -140,6 +140,9 @@ ai-academy/
     │                PEMERIKSAAN, TELAAH_BAHASA, PRODUKSI.json (status point),
     │                OPSI.json (opsi luaran), events.jsonl, status.json
     └── materi/pertemuan-NN/
+        ├── bahan/{README.md, awal/, jadi/}  berkas kerja peserta:
+        │                              keadaan awal dan keadaan benar.
+        │                              .csv di sini otomatis jadi .xlsx
         ├── point/point-NN.md          isi materi, sumber kebenaran
         ├── point/point-NN.catatan.md  asumsi & pertanyaan Writer
         ├── point/point-NN.kelas.md    jatah menit & catatan trainer

@@ -6,3 +6,5 @@ python-docx>=1.1.0
 pdfplumber>=0.11.0
 # Penulis deck presentasi PPTX
 python-pptx>=1.0.0
+# Penulis berkas kerja spreadsheet XLSX dari sumber CSV
+openpyxl>=3.1.0
