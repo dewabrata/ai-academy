@@ -28,3 +28,11 @@
 - [x] 5.1 Uji deterministik untuk pemeriksaan baru
 - [x] 5.2 Uji `csv_ke_xlsx`
 - [x] 5.3 Jalankan pada materi lama untuk melihat pelanggaran yang tertangkap
+
+## 6. Peran Aplikasi
+
+- [x] 6.1 `prompts/aplikasi.md` dan pendaftaran di `roles.py`
+- [x] 6.2 Jalankan sebagai tahap sendiri di paket pertemuan
+- [x] 6.3 Pindahkan `bahan/` dari peran Tugas
+- [x] 6.4 `BUDGET_APLIKASI` dan `MODEL_APLIKASI` terpisah
+- [x] 6.5 Perintah `--bahan N|semua` untuk materi yang sudah jadi

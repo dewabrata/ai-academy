@@ -37,6 +37,7 @@ KUNCI: dict[str, dict] = {
     "MODEL_FAKTA": dict(grup="Model", label="Fact-Checker", tipe="teks"),
     "MODEL_SLIDE": dict(grup="Model", label="Slide", tipe="teks"),
     "MODEL_TUGAS": dict(grup="Model", label="Tugas", tipe="teks"),
+    "MODEL_APLIKASI": dict(grup="Model", label="Aplikasi", tipe="teks"),
     "MODEL_EDITOR": dict(grup="Model", label="Editor", tipe="teks"),
 
     "BUDGET_KURIKULUM": dict(grup="Biaya", label="Kurikulum", tipe="angka"),
@@ -48,6 +49,7 @@ KUNCI: dict[str, dict] = {
     "BUDGET_POINT_FAKTA": dict(grup="Biaya", label="Fact-Checker / point", tipe="angka"),
     "BUDGET_SLIDE": dict(grup="Biaya", label="Slide / pertemuan", tipe="angka"),
     "BUDGET_TUGAS": dict(grup="Biaya", label="Tugas / pertemuan", tipe="angka"),
+    "BUDGET_APLIKASI": dict(grup="Biaya", label="Aplikasi / pertemuan", tipe="angka"),
     "BUDGET_PAKET_REVIEW": dict(grup="Biaya", label="Telaah paket", tipe="angka"),
     "BUDGET_EDITOR": dict(grup="Biaya", label="Editor", tipe="angka"),
     "BUDGET_PROYEK": dict(grup="Biaya", label="Plafon total proyek", tipe="angka"),

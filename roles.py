@@ -1,4 +1,4 @@
-"""Definisi delapan peran "karyawan AI" produksi materi ajar.
+"""Definisi sembilan peran "karyawan AI" produksi materi ajar.
 
 Tiap peran dipakai sebagai system_prompt + model pada satu query() tersendiri,
 jadi konteks tiap peran bersih dan biaya per tahap bisa dibatasi.
@@ -53,7 +53,7 @@ def load(name: str) -> str:
 DOC_TOOLS = ["Read", "Write", "Edit", "Glob", "Grep"]
 # Tool untuk peran yang memverifikasi atau meriset fakta produk.
 WEB_TOOLS = DOC_TOOLS + ["WebSearch", "WebFetch"]
-# Tool untuk peran yang harus mengeksekusi kode. Hanya Tugas.
+# Tool untuk peran yang harus mengeksekusi kode: Tugas dan Aplikasi.
 CODE_TOOLS = DOC_TOOLS + ["Bash"]
 
 # Perintah shell yang selalu ditolak, di semua peran. Berlaku juga untuk Lab
@@ -88,6 +88,13 @@ SLIDE = dict(model=model_for("SLIDE"), system_prompt=load("slide"), tools=DOC_TO
 # Satu-satunya peran dengan Bash: solusi lab kode wajib benar-benar dieksekusi.
 TUGAS = dict(model=model_for("TUGAS"), system_prompt=load("tugas"), tools=CODE_TOOLS)
 
+# Berkas kerja yang dibuka peserta: kode awal dan kode benar, atau berkas data.
+# Dipisah dari Tugas karena pekerjaannya berbeda jenis — membangun sesuatu yang
+# harus JALAN — dan karena kegagalannya tidak boleh ikut menjatuhkan soal,
+# kunci, dan quiz yang sudah benar.
+APLIKASI = dict(model=model_for("APLIKASI"), system_prompt=load("aplikasi"),
+                tools=CODE_TOOLS)
+
 # Penyeragaman bahasa di akhir
 EDITOR = dict(model=model_for("EDITOR"), system_prompt=load("editor"), tools=DOC_TOOLS)
 
@@ -99,6 +106,7 @@ SEMUA = {
     "FAKTA": FAKTA,
     "SLIDE": SLIDE,
     "TUGAS": TUGAS,
+    "APLIKASI": APLIKASI,
     "EDITOR": EDITOR,
 }
 

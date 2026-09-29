@@ -72,49 +72,16 @@ Kalau sebuah praktik diberi label "lab agentic", pastikan tugasnya benar-benar
 butuh agentic (tool yang bertindak sendiri lintas langkah atau berkas). Kalau
 bisa selesai dengan chat biasa, jangan pakai label itu.
 
-## `bahan/` — berkas kerja yang dibuka peserta
+## `bahan/` bukan urusanmu
 
-Kalau blueprint pertemuan ini memuat baris `Bahan:` (selain `tidak`), buat:
+Berkas kerja yang dibuka peserta — kode awal dan kode benar, atau berkas data —
+dibuat peran Aplikasi di folder `bahan/`. **Jangan membuat atau menyunting
+`bahan/`.**
 
-```
-bahan/
-├── README.md        cara membuka dan memakai berkas ini
-├── awal/            keadaan awal yang diterima peserta
-└── jadi/            keadaan benar sesudah pekerjaan pertemuan ini
-```
-
-`bahan/` berlaku untuk **semua jenis tugas**, bukan hanya `lab-kode`. Bedanya
-dengan `lab/`: `lab/` adalah latihan kecil yang dijalankan dan diverifikasi
-mesin, sedangkan `bahan/` adalah berkas yang benar-benar dibuka peserta —
-proyek aplikasinya, atau berkas datanya.
-
-- **Setiap berkas yang isinya ditampilkan di handbook harus ada di sini.**
-  Menampilkan isi `reminder-routes.js` lalu tidak menyerahkannya berarti peserta
-  membaca kode yang tidak bisa mereka buka. Pemeriksa otomatis menolak paket
-  yang begitu.
-- `bahan/awal/` adalah keadaan **sebelum** pekerjaan pertemuan ini. Untuk
-  pertemuan kedua dan seterusnya, isinya sama dengan `bahan/jadi/` pertemuan
-  sebelumnya — peserta yang tertinggal satu hari tetap bisa ikut.
-- `bahan/jadi/` adalah keadaan benar **sesudah** seluruh langkah pertemuan ini
-  dikerjakan. Inilah pembanding yang dipakai peserta memeriksa hasilnya sendiri.
-- Bagian yang harus dikerjakan peserta ditandai `TODO(peserta)` di `bahan/awal/`.
-- `bahan/README.md` menyebut: berkas apa saja ini, cara membukanya atau
-  menjalankannya, dan apa bedanya `awal/` dengan `jadi/`.
-
-### Berkas spreadsheet
-
-Tulis sebagai **`.csv`**, bukan `.xlsx`. `exporter.py` yang menghasilkan
-`.xlsx`-nya — sama seperti Markdown yang menjadi DOCX. Menulis berkas biner
-langsung ditolak.
-
-- Baris pertama adalah judul kolom, dan jumlah kolom tiap baris harus sama.
-- Angka ditulis tanpa satuan di dalam selnya (`1250000`, bukan `Rp 1.250.000`);
-  satuannya masuk ke judul kolom. Angka yang berawalan nol seperti `00123`
-  dipertahankan sebagai teks karena itu kode, bukan bilangan.
-- Untuk latihan merapikan data, `bahan/awal/` memang berisi data berantakan —
-  kategori tidak seragam, sel kosong, duplikat. Buat berantakannya **sengaja dan
-  terdaftar**: sebut di `bahan/README.md` berapa baris duplikat dan berapa sel
-  kosong yang ditanam, supaya trainer bisa memeriksa pekerjaan peserta.
+Yang perlu kamu tahu: soal latihan dan praktik boleh merujuk berkas di `bahan/`,
+dan kalau kamu merujuknya, pakai nama berkas yang persis sama dengan yang ada di
+point. Kalau berkas yang kamu butuhkan sepertinya tidak ada di `bahan/`, sebut
+di laporanmu — jangan membuatnya sendiri.
 
 ## `lab/` — praktikum kode
 

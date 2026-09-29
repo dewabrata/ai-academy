@@ -1163,12 +1163,10 @@ def prompt_paket(ws: Path, p: dict, peran: str) -> str:
         teks += f"\nLuaran wajibmu: {rel_f}/SLIDE.md, mengikuti format wajib di prompt-mu.\n"
     else:
         jenis = p["jenis"]
-        bahan = (p.get("bahan") or "").strip()
         teks += (f"\nJenis tugas pertemuan ini: {'+'.join(sorted(jenis))}.\n"
                  f"Luaran wajibmu di {rel_f}/: LATIHAN.md, KUNCI.md, QUIZ_AIKEN.txt"
                  + (", PRAKTIK.md" if "praktik" in jenis else "")
                  + (", folder lab/ (awal/, solusi/, README.md)" if "lab-kode" in jenis else "")
-                 + (", folder bahan/ (awal/, jadi/, README.md)" if bahan else "")
                  + ".\n")
         if "lab-kode" in jenis:
             teks += (f"Solusi lab WAJIB kamu eksekusi sampai berhasil. Batas percobaan "
@@ -1176,25 +1174,47 @@ def prompt_paket(ws: Path, p: dict, peran: str) -> str:
                      f"laporkan tahap ini gagal.\n")
         else:
             teks += "Jangan membuat folder lab/.\n"
-        if bahan:
-            teks += (f"\nBerkas kerja peserta yang diminta blueprint: {bahan}\n"
-                     f"Setiap berkas yang ISINYA ditampilkan di point pertemuan ini wajib "
-                     f"benar-benar ada di bahan/, dengan isi yang sama persis. Pemeriksa "
-                     f"otomatis menolak paket yang menampilkan berkas tanpa menyerahkannya.\n")
-            # Keadaan awal pertemuan ini = keadaan benar pertemuan sebelumnya.
-            # Tanpa path konkret, peran akan mengarang ulang kerangka yang
-            # berbeda dan kesinambungan antarhari putus.
-            jadi_lalu = folder_pertemuan(ws, p["no"] - 1) / "bahan" / "jadi"
-            if p["no"] > 1 and jadi_lalu.is_dir():
-                teks += (f"bahan/awal/ pertemuan ini BERANGKAT dari "
-                         f"{_rel(ws, jadi_lalu)} — salin isinya, lalu tandai bagian yang "
-                         f"dikerjakan di pertemuan ini dengan TODO(peserta). Jangan "
-                         f"mengarang kerangka baru.\n")
-        else:
-            teks += "Jangan membuat folder bahan/.\n"
+        teks += ("Folder bahan/ dikerjakan peran Aplikasi. Jangan membuat atau "
+                 "menyuntingnya.\n")
     teks += ("\nKalau berkasmu sudah ada (paket dibangun ulang setelah point direvisi), "
              "sunting berkas yang ada sesuai perubahan point dan masukan — jangan tulis ulang "
              "dari nol.\n")
+    return teks
+
+
+def prompt_aplikasi(ws: Path, p: dict, kurang: list[str] | None = None) -> str:
+    """Tugas peran Aplikasi: bangun bahan/ untuk satu pertemuan.
+
+    `kurang` diisi saat menambahkan bahan ke materi yang sudah jadi — daftar
+    berkas dari pemeriksa dipakai sebagai surat perintah, sehingga peran tidak
+    perlu menebak apa yang kurang.
+    """
+    f = folder_pertemuan(ws, p["no"])
+    rel_f = _rel(ws, f)
+    teks = (f"Bangun BAHAN KERJA untuk PERTEMUAN {p['no']} — {p['judul']}.\n\n"
+            f"Sumber kebenaranmu: seluruh point final di {rel_f}/point/point-NN.md "
+            f"({len(p['point'])} point; abaikan *.catatan.md, *.kelas.md, dan "
+            f"ISTILAH.md).\n"
+            f"Rujukan:\n{rujukan_umum(ws, p)}")
+    bahan = (p.get("bahan") or "").strip()
+    if bahan:
+        teks += f"\nYang diminta blueprint: {bahan}\n"
+    teks += f"\nLuaranmu di {rel_f}/bahan/: README.md, awal/, dan jadi/.\n"
+    jadi_lalu = folder_pertemuan(ws, p["no"] - 1) / "bahan" / "jadi"
+    if p["no"] > 1 and jadi_lalu.is_dir():
+        teks += (f"awal/ BERANGKAT dari {_rel(ws, jadi_lalu)} — salin isinya lebih "
+                 f"dulu, baru tandai bagian yang dikerjakan di pertemuan ini dengan "
+                 f"TODO(peserta). Jangan mengarang kerangka baru.\n")
+    if kurang:
+        teks += ("\nPemeriksa otomatis mencatat berkas berikut ditampilkan isinya di "
+                 "point tetapi belum diserahkan. Semuanya harus ada di bahan/, dengan "
+                 "isi yang sama persis seperti di point:\n"
+                 + "".join(f"- {x}\n" for x in kurang))
+    if (f / "MASUKAN.md").exists():
+        teks += (f"\n{rel_f}/MASUKAN.md memuat masukan pemilik proyek atas pertemuan "
+                 f"ini. Kerjakan yang menyangkut berkas kerja.\n")
+    teks += ("\nKalau bahan/ sudah ada sebagian, lanjutkan dan perbaiki — jangan "
+             "menghapus lalu menulis ulang dari nol.\n")
     return teks
 
 
@@ -1233,6 +1253,12 @@ async def bangun_paket(ws: Path, p: dict):
     print(f"\n>>> Pertemuan {no}: membangun paket dari {len(p['point'])} point.")
     tugas_paket = [(f"TUGAS-{nn}", prompt_paket(ws, p, "TUGAS"), roles.TUGAS,
                     budget("TUGAS", 4.0))]
+    # Aplikasi berjalan sebagai tahap sendiri: pekerjaannya membangun sesuatu
+    # yang harus JALAN, dan kegagalannya tidak boleh ikut menjatuhkan soal,
+    # kunci, dan quiz yang sudah benar.
+    if (p.get("bahan") or "").strip():
+        tugas_paket.append((f"APLIKASI-{nn}", prompt_aplikasi(ws, p), roles.APLIKASI,
+                            budget("APLIKASI", 10.0)))
     if OPSI["slide"]:
         tugas_paket.insert(0, (f"SLIDE-{nn}", prompt_paket(ws, p, "SLIDE"), roles.SLIDE,
                                budget("SLIDE", 3.0)))
@@ -1265,8 +1291,10 @@ async def bangun_paket(ws: Path, p: dict):
         if "SLIDE" in revisi and OPSI["slide"]:
             pemilik.append(("SLIDE", roles.SLIDE, budget("SLIDE", 3.0)))
         if any(x in revisi for x in ("LATIHAN", "KUNCI", "QUIZ", "AIKEN", "PRAKTIK",
-                                     "LAB", "BAHAN", "SOAL")):
+                                     "LAB", "SOAL")):
             pemilik.append(("TUGAS", roles.TUGAS, budget("TUGAS", 4.0)))
+        if "BAHAN" in revisi and (p.get("bahan") or "").strip():
+            pemilik.append(("APLIKASI", roles.APLIKASI, budget("APLIKASI", 10.0)))
         if not pemilik:       # tidak jelas milik siapa: lebih baik keduanya membaca
             pemilik = [("TUGAS", roles.TUGAS, budget("TUGAS", 4.0))]
             if OPSI["slide"]:
@@ -1456,6 +1484,62 @@ async def tambah_slide(ws: Path, nomor: int | None):
         print(">>> Tidak ada pertemuan yang perlu dibuatkan slide.")
 
 
+async def tambah_bahan(ws: Path, nomor: int | None):
+    """Bangun bahan/ menyusul untuk pertemuan yang paketnya sudah jadi.
+
+    Dipakai untuk materi yang diproduksi sebelum kontrak bahan/ ada. Point tidak
+    disentuh sama sekali: bahan dibangun DARI point final, jadi menambahkannya
+    belakangan tidak mengubah isi materi dan tidak mengulang biaya penulisan.
+
+    Daftar berkas yang kurang diambil dari pemeriksa, bukan ditebak peran —
+    pemeriksa sudah tahu persis berkas mana yang ditampilkan isinya di point
+    tetapi tidak pernah diserahkan.
+    """
+    semua = daftar_pertemuan(ws)
+    target = [x for x in semua if nomor is None or x["no"] == nomor]
+    if not target:
+        print(f"!! Pertemuan {nomor} tidak ada di blueprint.")
+        raise SystemExit(1)
+
+    dikerjakan = []
+    for x in target:
+        f = folder_pertemuan(ws, x["no"])
+        if not list((f / "point").glob("point-[0-9][0-9].md")):
+            print(f">>> Pertemuan {x['no']} belum punya point — dilewati.")
+            continue
+        kurang = berkas_belum_diserahkan(f)
+        if not kurang and (f / "bahan").is_dir():
+            print(f">>> Pertemuan {x['no']} sudah lengkap bahannya — dilewati.")
+            continue
+        print(f"\n>>> Pertemuan {x['no']}: membangun bahan/ "
+              f"({len(kurang)} berkas belum diserahkan).")
+        await run_stage_retry(f"APLIKASI-{x['no']:02d}", prompt_aplikasi(ws, x, kurang),
+                              roles.APLIKASI, ws, budget("APLIKASI", 10.0), wilayah=f)
+        dikerjakan.append(x["no"])
+
+    if not dikerjakan:
+        print(">>> Tidak ada pertemuan yang perlu dibuatkan bahan.")
+        return
+    for x in target:
+        if x["no"] in dikerjakan:
+            for g in ekspor_satu(ws, x):
+                print(f"!! {g}")
+    cek = periksa_dan_catat(ws)
+    print(f"\n>>> Bahan dibuat untuk pertemuan: {', '.join(map(str, dikerjakan))}. "
+          f"Skor pemeriksaan {cek['skor_rata']}%.")
+
+
+def berkas_belum_diserahkan(f: Path) -> list[str]:
+    """Berkas yang ditampilkan isinya di point tetapi tidak ada di bahan/ atau lab/."""
+    ada = pemeriksa.berkas_diserahkan(f)
+    kurang: list[str] = []
+    for bp in sorted((f / "point").glob("point-[0-9][0-9].md")):
+        for nama in pemeriksa.berkas_ditampilkan(bp.read_text(encoding="utf-8")):
+            if nama not in ada and Path(nama).name not in ada:
+                kurang.append(nama)
+    return list(dict.fromkeys(kurang))
+
+
 # ---------------------------------------------------------------------------
 # Pipeline
 # ---------------------------------------------------------------------------
@@ -1630,6 +1714,10 @@ def main():
     ap.add_argument("--slide", metavar="N|semua",
                     help="buat SLIDE.md menyusul untuk pertemuan N (atau 'semua'), "
                          "lalu berhenti — untuk proyek yang dibuat tanpa slide")
+    ap.add_argument("--bahan", metavar="N|semua",
+                    help="bangun bahan/ (berkas kerja peserta) menyusul untuk "
+                         "pertemuan N atau 'semua', lalu berhenti — point tidak "
+                         "disentuh")
     a = ap.parse_args()
 
     if not a.silabus and not a.project:
@@ -1672,8 +1760,10 @@ def main():
     if mulai not in TAHAP:
         mulai = "kurikulum"
 
-    ok, pesan = lock_acquire(project, f"slide:{a.slide}" if a.slide else
-                             (f"resume:{mulai}" if a.resume else "jalan"))
+    aksi = (f"slide:{a.slide}" if a.slide else
+            f"bahan:{a.bahan}" if a.bahan else
+            f"resume:{mulai}" if a.resume else "jalan")
+    ok, pesan = lock_acquire(project, aksi)
     if not ok:
         print(pesan)
         sys.exit(1)
@@ -1685,7 +1775,9 @@ def main():
           f"({len(teks.splitlines())} baris)")
     print(f"Autentikasi : {auth_mode()}")
     print(f"Claude CLI  : {CLI_PATH or '(pencarian bawaan SDK)'}")
-    print(f"Mulai dari  : {'slide susulan ' + str(a.slide) if a.slide else mulai}")
+    awal_teks = ("slide susulan " + str(a.slide) if a.slide else
+                 "bahan susulan " + str(a.bahan) if a.bahan else mulai)
+    print(f"Mulai dari  : {awal_teks}")
     print(f"Pilot       : point 1 {'pertemuan ' + str(a.pilot) if a.pilot else 'pertemuan pertama'}")
     print(f"Klien       : {'docs/KLIEN.md' if (ws / 'docs' / 'KLIEN.md').exists() else '-'}")
     print(f"Point       : {opsi_mod.baca(ws)['point_halaman']} halaman, "
@@ -1693,7 +1785,7 @@ def main():
     print("=" * 70)
     monitor.tg_send(monitor.form("🎓 AI Academy mulai", [
         ("Proyek", project),
-        ("Mulai dari", "slide susulan " + str(a.slide) if a.slide else mulai),
+        ("Mulai dari", awal_teks),
         ("Silabus", asli.name if asli else "teks langsung"),
         ("Akun", akun_claude() or auth_mode()),
     ]), html=True)
@@ -1702,6 +1794,9 @@ def main():
         if a.slide:
             nomor = None if str(a.slide).lower() in ("semua", "all") else int(a.slide)
             asyncio.run(tambah_slide(ws, nomor))
+        elif a.bahan:
+            nomor = None if str(a.bahan).lower() in ("semua", "all") else int(a.bahan)
+            asyncio.run(tambah_bahan(ws, nomor))
         else:
             asyncio.run(pipeline(ws, project, teks, mulai, a.pilot))
     except KeyboardInterrupt:

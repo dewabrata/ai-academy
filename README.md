@@ -41,7 +41,9 @@ silabus (.md / .txt / .docx / .pdf, atau teks langsung)
        │   (point 1 pertemuan pilot)                                        [gate PILOT]
        │
        │   setelah semua point siap, paket dibangun dari point final:
-       │      SLIDE   → SLIDE.md + catatan trainer → SLIDE.pptx
+       │      SLIDE    → SLIDE.md + catatan trainer → SLIDE.pptx
+       │      APLIKASI → bahan/{awal/, jadi/} — kode/berkas kerja peserta,
+       │                 .csv di sini otomatis jadi .xlsx
        │      TUGAS   → LATIHAN.md, KUNCI.md, QUIZ_AIKEN.txt,
        │                PRAKTIK.md dan/atau lab/ (solusi dieksekusi)
        │      HANDBOOK.md  ← gabungan semua point (digabung Python)
@@ -64,7 +66,7 @@ berlaku untuk semua point berikutnya.
 dieskalasi, dan semua pertanyaan yang dikumpulkan Reviewer dan Writer selama
 pertemuan itu.
 
-## Delapan peran
+## Sembilan peran
 
 | Peran | Tool | Luaran |
 |---|---|---|
@@ -75,6 +77,7 @@ pertemuan itu.
 | **Fact-Checker** | baca/tulis + **web** | verifikasi klaim produk ke dokumentasi resmi, satu baris per klaim beserta URL sumbernya |
 | **Slide** | baca/tulis | `SLIDE.md` dari point final, tunduk batas kepadatan, logistik di catatan pengajar |
 | **Tugas** | baca/tulis + **Bash** | `LATIHAN.md`, `KUNCI.md`, `QUIZ_AIKEN.txt`, `PRAKTIK.md`, `lab/`. Solusi lab **wajib dieksekusi sampai lulus** |
+| **Aplikasi** | baca/tulis + **Bash** | `bahan/{README.md, awal/, jadi/}` — berkas kerja peserta: keadaan awal dan keadaan benar, dijalankan sampai berhasil |
 | **Editor** | baca/tulis | `GLOSARIUM.md` gabungan, `TELAAH_BAHASA.md`, penyeragaman istilah |
 
 Peran Tugas satu-satunya yang punya akses `Bash`, dan hanya Writer serta
