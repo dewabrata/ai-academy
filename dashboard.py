@@ -355,7 +355,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "Belum masuk.", "login": True}, 401)
 
         if u.path == "/api/moodle":
-            return self._json(self._moodle_keadaan(q.get("project", [""])[0]))
+            return self._json(self._moodle_keadaan(q.get("project", "")))
         if u.path == "/api/proyek":
             return self._json({"proyek": control.daftar_proyek(),
                                "berjalan": control.running_any(),
