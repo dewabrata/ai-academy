@@ -249,6 +249,25 @@ def detail(project: str) -> dict:
 # ---------------------------------------------------------------------------
 # HTTP
 # ---------------------------------------------------------------------------
+def _kursus_masih_ada(kursus_id: int) -> bool | None:
+    """True/False, atau None kalau Moodle tidak bisa dihubungi.
+
+    None dibedakan dari False dengan sengaja: "tidak bisa diperiksa" bukan
+    "sudah dihapus", dan tab menampilkannya berbeda.
+    """
+    try:
+        import moodle
+        k = moodle.Klien()
+        k.mulai()
+        hasil, galat = k.panggil("core_course_get_courses_by_field",
+                                 {"field": "id", "value": int(kursus_id)})
+        if galat:
+            return None
+        return bool(((hasil or {}).get("courses")) or [])
+    except Exception:
+        return None
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "AIAcademy"
 
@@ -536,6 +555,11 @@ class Handler(BaseHTTPRequestHandler):
                 out["hasil"] = json.loads(h.read_text(encoding="utf-8"))
             except ValueError:
                 pass
+        # Kursus bisa sudah dihapus orang di Moodle, sementara berkas hasilnya
+        # tertinggal. Tanpa pemeriksaan ini tab menyatakan "sudah diunggah"
+        # sambil menunjuk kursus yang tidak ada.
+        if out.get("hasil", {}).get("kursus_id"):
+            out["hasil"]["masih_ada"] = _kursus_masih_ada(out["hasil"]["kursus_id"])
         out["bobot_hitungan"] = moodle_unggah.bobot_hitungan(out["komposisi"])
         out["setelan"] = {
             "url": bool((os.getenv("MOODLE_MCP_URL") or "").strip()),
@@ -1412,8 +1436,13 @@ function gambarMoodle(){
 
   const hasil=j.hasil?`<div class="kartu"><h2>Sudah pernah diunggah</h2>
       <p class="kecil">Kursus id <b>${j.hasil.kursus_id}</b>,
-        ${j.hasil.pertemuan.length} pertemuan. Mengunggah lagi membuat kursus
-        <b>baru</b>, bukan memperbarui yang itu.</p></div>`:"";
+        ${j.hasil.pertemuan.length} pertemuan —
+        ${j.hasil.masih_ada===false
+            ? '<b>sudah tidak ada di Moodle</b> (dihapus di sana)'
+            : j.hasil.masih_ada===null
+              ? 'statusnya tidak bisa diperiksa sekarang'
+              : 'masih ada di Moodle'}.
+        Mengunggah lagi membuat kursus <b>baru</b>, bukan memperbarui yang itu.</p></div>`:"";
 
   el.innerHTML=blokSetelan+blokKomposisi+blokMasalah+`
     <div class="kartu"><h2>Rencana unggah</h2>
