@@ -18,6 +18,7 @@ import json
 import os
 import secrets
 import sys
+import threading
 import time
 from email.parser import BytesParser
 from email.policy import default as email_policy
@@ -282,6 +283,12 @@ def _moodle_pilihan() -> dict:
     }
 
 
+# Periksa-nama-lalu-buat bukan satu langkah: dua permintaan berbarengan
+# sama-sama melihat "belum ada" dan membuat kategori kembar. Kunci ini
+# mengurutkannya, sehingga permintaan kedua sudah melihat hasil yang pertama.
+_KUNCI_KATEGORI = threading.Lock()
+
+
 def _kategori_baru(b: dict) -> tuple[dict, int]:
     """Buat satu kategori kursus. Tidak bisa dibatalkan dari sini.
 
@@ -289,6 +296,11 @@ def _kategori_baru(b: dict) -> tuple[dict, int]:
     salah ketik harus dihapus manusia lewat UI Moodle. Karena itu nama diperiksa
     ketat di sini: kosong dan kembar ditolak sebelum dikirim.
     """
+    with _KUNCI_KATEGORI:
+        return _kategori_baru_terkunci(b)
+
+
+def _kategori_baru_terkunci(b: dict) -> tuple[dict, int]:
     nama = " ".join(str(b.get("nama") or "").split())
     if not nama:
         return {"ok": False, "msg": "Nama kategori belum diisi."}, 400
@@ -876,6 +888,12 @@ max-height:46vh;overflow:auto}
 .gate details summary{cursor:pointer;color:var(--warn);font-size:13px}
 .gate details pre{margin-top:8px;max-height:260px;font-size:12px}
 .gate .angkaBesar{font-weight:650}
+.sibuk{position:fixed;top:0;left:0;right:0;height:3px;z-index:99;
+  background:linear-gradient(90deg,transparent,var(--acc),transparent);
+  background-size:40% 100%;background-repeat:no-repeat;animation:jalan 1.1s linear infinite}
+@keyframes jalan{0%{background-position:-40% 0}100%{background-position:140% 0}}
+button[data-sibuk]{opacity:.55;cursor:progress}
+@media (prefers-reduced-motion:reduce){.sibuk{animation:none;background:var(--acc)}}
 .pesan{position:fixed;right:16px;bottom:16px;background:#111827;color:#fff;padding:10px 14px;
 border-radius:8px;font-size:13px;max-width:380px;box-shadow:0 6px 24px rgba(0,0,0,.18);
 opacity:0;transition:.2s;pointer-events:none}
@@ -975,6 +993,7 @@ HALAMAN = r"""<!doctype html><html lang="id"><head><meta charset="utf-8">
   <div id="setelan" hidden></div>
   <div id="baru" hidden></div>
 </main>
+<div class="sibuk" id="sibuk" hidden></div>
 <div class="pesan" id="pesan"></div>
 <script>
 let aktif=null, D=null, TAB="proyek", berkasAktif=null, SET=null, BAWAAN=null;
@@ -987,8 +1006,39 @@ const rp=v=>"$"+(Number(v)||0).toFixed(2);
 
 function pesan(t){const e=document.getElementById("pesan");e.textContent=t;
   e.classList.add("tampil");setTimeout(()=>e.classList.remove("tampil"),4000);}
-async function api(u,o){const r=await fetch(u,o);
-  if(r.status===401){location.reload();return {};} return r.json();}
+let SIBUK=0;
+function tandaiSibuk(d){
+  SIBUK=Math.max(0,SIBUK+d);
+  document.getElementById("sibuk").hidden=SIBUK===0;
+}
+async function api(u,o){
+  tandaiSibuk(1);
+  try{
+    const r=await fetch(u,o);
+    if(r.status===401){location.reload();return {};}
+    return await r.json();
+  }catch(e){
+    // Jaringan putus tidak boleh membuat bilah sibuk menyala selamanya.
+    pesan("Gagal menghubungi dashboard: "+e.message);
+    return {ok:false,msg:String(e.message||e)};
+  }finally{tandaiSibuk(-1);}
+}
+
+// Tombol yang memicu permintaan dikunci selama permintaan itu berjalan.
+// Klik kedua pada proses lambat pernah membuat dua kategori kembar: dua
+// permintaan berbarengan sama-sama melihat namanya "belum ada".
+async function sibukkan(el,kerja){
+  if(!el||el.dataset.sibuk)return;
+  const teks=el.textContent, matiSemula=el.disabled;
+  el.dataset.sibuk="1"; el.disabled=true; el.textContent="sedang jalan…";
+  try{return await kerja();}
+  finally{
+    delete el.dataset.sibuk; el.textContent=teks;
+    // Tombol Unggah sengaja mati selama rencananya bermasalah — jangan
+    // dihidupkan hanya karena satu permintaan selesai.
+    el.disabled=matiSemula;
+  }
+}
 async function post(u,d){return api(u,{method:"POST",
   headers:{"Content-Type":"application/json"},body:JSON.stringify(d)});}
 async function keluar(){await post("/api/logout",{});location.reload();}
@@ -1617,7 +1667,7 @@ function gambarMoodle(){
         <label style="margin-top:6px">Di dalam kategori</label>
         <select id="mdKatInduk"></select>
         <div class="baris" style="margin-top:8px">
-          <button onclick="buatKategori()">Buat kategori</button>
+          <button onclick="sibukkan(this,buatKategori)">Buat kategori</button>
           <button class="kecil" onclick="document.getElementById('mdKatBaru').style.display='none'">Batal</button>
         </div>
         <p class="kecil">Kategori yang terbuat <b>tidak bisa dihapus dari sini</b> —
@@ -1629,9 +1679,9 @@ function gambarMoodle(){
         pengaturan atau halaman baku yang ingin ikut, dan sebaiknya
         <b>dikosongkan</b> untuk materi yang berdiri sendiri.</p>
       <div class="baris" style="margin-top:12px">
-        <button onclick="simpanRencana()">Simpan perubahan</button>
-        <button onclick="susunRencana(true)">Susun ulang rencana</button>
-        <button class="pri" onclick="unggahMoodle()"
+        <button onclick="sibukkan(this,simpanRencana)">Simpan perubahan</button>
+        <button onclick="sibukkan(this,()=>susunRencana(true))">Susun ulang rencana</button>
+        <button class="pri" onclick="sibukkan(this,unggahMoodle)"
           ${masalah.length?"disabled":""}>Unggah ke Moodle</button>
       </div>
       <p class="kecil" style="margin-top:8px">Unggah dikerjakan kode biasa tanpa
@@ -1814,7 +1864,7 @@ function gambarSetelan(){
       grup Autentikasi di bawah. Pipeline lalu memakai kredit API dan berhenti memotong
       kuota langganan Anda.</p>
     <div class="baris" style="margin-top:10px">
-      <button onclick="terapkanSetelan()">Terapkan ke pipeline yang sedang berjalan</button>
+      <button onclick="sibukkan(this,terapkanSetelan)">Terapkan ke pipeline yang sedang berjalan</button>
       <span class="kecil">Pipeline dihentikan lalu dilanjutkan dari titik terakhir —
         setelan baru baru berlaku setelah ini.</span>
     </div></div>`;
@@ -1825,7 +1875,7 @@ function gambarSetelan(){
         <button onclick="ujiTelegram()">Kirim pesan uji</button>
         <span class="kecil">Menguji token dan chat id dengan mengirim satu pesan nyata.</span></div>`:""}
       </div>`).join("")
-    +`<div class="baris"><button class="pri" onclick="simpanSetelan()">Simpan pengaturan</button>
+    +`<div class="baris"><button class="pri" onclick="sibukkan(this,simpanSetelan)">Simpan pengaturan</button>
       <span class="kecil">Kolom rahasia yang dikosongkan tidak mengubah nilai lama.</span></div>`;
 }
 async function terapkanSetelan(){
