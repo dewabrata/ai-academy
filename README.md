@@ -107,7 +107,8 @@ dikumpulkan ke `PERTANYAAN.md` untuk dijawab sekali di gate pertemuan.
 paket lengkap sesuai jenis tugas, semua point siap, tidak ada penanda
 `[CEK-FAKTA` tersisa, capaian tertutup dan teruji, soal bertanda capaian,
 lembar latihan bebas jawaban, quiz AIKEN bisa diimpor Moodle, alokasi waktu
-blueprint pas, slide sesuai batas, dan solusi lab jalan.
+blueprint pas, slide sesuai batas, solusi lab jalan, dan sintaks berkas
+kerja yang diserahkan ke peserta sehat.
 
 ```bash
 python pemeriksa.py workspace/<proyek>

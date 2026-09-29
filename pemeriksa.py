@@ -259,6 +259,53 @@ def berkas_ditampilkan(teks: str) -> list[str]:
     return list(dict.fromkeys(hasil))
 
 
+# Pemeriksaan sintaks berkas yang diserahkan ke peserta. Menjalankannya penuh
+# butuh `npm install` — jaringan dan waktu — sementara sintaks bisa diperiksa
+# tanpa keduanya, deterministik, dan sudah menangkap kerusakan yang nyata.
+LEWATI_FOLDER = {"node_modules", ".git", "__pycache__", "dist", "venv", ".venv"}
+
+
+def _sintaks_js(f: Path) -> str:
+    cmd = PENERJEMAH.get(".js", [])
+    if not _ada_penerjemah(cmd):
+        return ""                       # node tidak terpasang: bukan cacat materi
+    r = subprocess.run(cmd + ["--check", str(f)], capture_output=True, text=True,
+                       timeout=30, encoding="utf-8", errors="replace")
+    if r.returncode == 0:
+        return ""
+    galat = (r.stderr or r.stdout).strip().splitlines()
+    return next((b.strip() for b in galat if "Error" in b), galat[0] if galat else "gagal")
+
+
+def periksa_sintaks(akar: Path) -> list[str]:
+    """Berkas dengan sintaks rusak di bawah `akar`, satu baris per berkas."""
+    rusak: list[str] = []
+    if not akar.is_dir():
+        return rusak
+    for f in sorted(akar.rglob("*")):
+        if not f.is_file() or LEWATI_FOLDER & set(f.parts):
+            continue
+        ext = f.suffix.lower()
+        rel = f.relative_to(akar).as_posix()
+        try:
+            if ext in (".js", ".mjs", ".cjs"):
+                pesan = _sintaks_js(f)
+                if pesan:
+                    rusak.append(f"{rel}: {pesan[:90]}")
+            elif ext == ".py":
+                # compile() memeriksa sintaks tanpa menulis berkas .pyc.
+                compile(f.read_text(encoding="utf-8"), str(f), "exec")
+            elif ext == ".json":
+                json.loads(f.read_text(encoding="utf-8"))
+        except SyntaxError as e:
+            rusak.append(f"{rel}: baris {e.lineno} — {e.msg}")
+        except ValueError as e:                       # JSON rusak
+            rusak.append(f"{rel}: {e}")
+        except (OSError, subprocess.SubprocessError) as e:
+            rusak.append(f"{rel}: tidak terbaca ({e})")
+    return rusak
+
+
 def _kolom_csv_tidak_sama(csv_path: Path) -> str:
     """Keterangan singkat kalau jumlah kolom CSV tidak seragam, atau '' kalau rapi."""
     try:
@@ -526,6 +573,22 @@ def periksa_pertemuan(ws: Path, p: dict) -> list[dict]:
         h.append(_hasil("bahan kerja", GAGAL if kurang else LULUS,
                         ("hilang: " + ", ".join(kurang)) if kurang
                         else f"{sum(1 for x in bahan.rglob('*') if x.is_file())} berkas",
+                        f"{rel}/bahan"))
+
+    # 8c-2. Sintaks berkas yang diserahkan ke peserta. bahan/awal dan lab/awal
+    # dijanjikan bisa dijalankan walau TODO belum dikerjakan, dan bahan/jadi
+    # dijanjikan sudah benar — tetapi sampai sekarang tidak ada yang memeriksanya.
+    sumber = [x for x in (bahan, f / "lab" / "awal") if x.is_dir()]
+    if not sumber:
+        h.append(_hasil("sintaks berkas peserta", TAK_BERLAKU,
+                        "tidak ada bahan/ maupun lab/awal/"))
+    else:
+        rusak = [x for akar in sumber for x in periksa_sintaks(akar)]
+        jumlah = sum(1 for akar in sumber for x in akar.rglob("*")
+                     if x.is_file() and not (LEWATI_FOLDER & set(x.parts))
+                     and x.suffix.lower() in (".js", ".mjs", ".cjs", ".py", ".json"))
+        h.append(_hasil("sintaks berkas peserta", GAGAL if rusak else LULUS,
+                        ("; ".join(rusak[:3]) if rusak else f"{jumlah} berkas kode diperiksa"),
                         f"{rel}/bahan"))
 
     # 8d. Berkas yang ditampilkan isinya harus benar-benar diserahkan.

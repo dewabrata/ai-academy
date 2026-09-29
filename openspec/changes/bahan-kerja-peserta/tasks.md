@@ -36,3 +36,4 @@
 - [x] 6.3 Pindahkan `bahan/` dari peran Tugas
 - [x] 6.4 `BUDGET_APLIKASI` dan `MODEL_APLIKASI` terpisah
 - [x] 6.5 Perintah `--bahan N|semua` untuk materi yang sudah jadi
+- [x] 6.6 Periksa sintaks berkas di `bahan/` dan `lab/awal/`

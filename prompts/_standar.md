@@ -121,7 +121,8 @@ Beberapa aturan tidak hanya diminta, tetapi juga diperiksa mesin:
 - **Setelah paket pertemuan dibangun**: `docs/PEMERIKSAAN.md` memeriksa
   kelengkapan paket, status tiap point, sisa penanda `[CEK-FAKTA`, tanda
   capaian di soal, lembar latihan bebas jawaban, format quiz AIKEN, kepadatan
-  slide, dan solusi lab yang dijalankan ulang.
+  slide, solusi lab yang dijalankan ulang, kelengkapan berkas kerja di
+  `bahan/`, dan sintaks berkas kode yang diserahkan ke peserta.
 
 ## Batas teknis
 
