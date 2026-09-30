@@ -11,6 +11,7 @@ import asyncio
 import json
 import os
 import queue
+import re
 import threading
 import time
 import uuid
@@ -138,6 +139,53 @@ def form(judul: str, baris: list[tuple[str, object]], catatan: str = "") -> str:
     return teks
 
 
+# Tag yang dikenal Telegram. Pemotongan di tengah salah satunya membuat
+# seluruh pesan ditolak, bukan sekadar kehilangan format.
+_TAG_HTML = ("b", "strong", "i", "em", "u", "s", "code", "pre", "a")
+
+
+def potong_html_aman(teks: str, batas: int) -> str:
+    """Potong ke `batas` tanpa meninggalkan tag atau entitas yang terbelah.
+
+    Jaring pengaman, bukan jalur utama: pemanggil seharusnya sudah menghitung
+    muatannya. Kalau perhitungan itu meleset, lebih baik pesannya kehilangan
+    ekor daripada hilang sama sekali.
+    """
+    if len(teks) <= batas:
+        return teks
+
+    def _rapikan(sampai: int) -> tuple[str, str]:
+        potong = teks[:sampai]
+        # Buang tag atau entitas yang terbelah di ujung.
+        for buka, tutup in (("<", ">"), ("&", ";")):
+            i = potong.rfind(buka)
+            if i != -1 and potong.find(tutup, i) == -1:
+                potong = potong[:i]
+        terbuka = []
+        for m in re.finditer(r"<(/?)(\w+)[^>]*>", potong):
+            nama = m.group(2).lower()
+            if nama not in _TAG_HTML:
+                continue
+            if m.group(1):
+                if terbuka and terbuka[-1] == nama:
+                    terbuka.pop()
+            else:
+                terbuka.append(nama)
+        return potong, "".join(f"</{x}>" for x in reversed(terbuka))
+
+    # Tag penutup ikut dihitung: tanpa ini hasilnya bisa melewati batas yang
+    # justru sedang dijaga. Dua putaran cukup - memotong lebih pendek hanya
+    # bisa mengurangi tag yang terbuka, tidak pernah menambah.
+    sampai = batas
+    for _ in range(2):
+        potong, tutup = _rapikan(sampai)
+        if len(potong) + len(tutup) <= batas:
+            return potong + tutup
+        sampai = batas - len(tutup)
+    potong, tutup = _rapikan(sampai)
+    return (potong + tutup)[:batas]
+
+
 def tg_send(text: str, tombol: list | None = None, html: bool = False,
             paksa_balas: str | None = None):
     """Kirim pesan. `tombol` = [[(label, data), ...], ...] menjadi tombol inline.
@@ -153,7 +201,9 @@ def tg_send(text: str, tombol: list | None = None, html: bool = False,
     tok, chat = _tg_cfg()
     if not tok:
         return
-    kirim = {"chat_id": chat, "text": text[:BATAS_PESAN]}
+    kirim = {"chat_id": chat,
+             "text": potong_html_aman(text, BATAS_PESAN) if html
+                     else text[:BATAS_PESAN]}
     if html:
         kirim["parse_mode"] = "HTML"
     if tombol:
@@ -163,11 +213,35 @@ def tg_send(text: str, tombol: list | None = None, html: bool = False,
         # input_field_placeholder dibatasi 64 karakter oleh Telegram.
         kirim["reply_markup"] = json.dumps({
             "force_reply": True, "input_field_placeholder": paksa_balas[:64]})
+    url = f"https://api.telegram.org/bot{tok}/sendMessage"
     try:
-        data = urllib.parse.urlencode(kirim).encode()
-        urllib.request.urlopen(f"https://api.telegram.org/bot{tok}/sendMessage", data, timeout=10)
+        urllib.request.urlopen(url, urllib.parse.urlencode(kirim).encode(), timeout=10)
+        return
+    except Exception as e:
+        # Telegram menaruh sebab sesungguhnya di badan balasan; tanpa ini yang
+        # tercatat hanya "Bad Request" dan penyebabnya harus ditebak.
+        sebab = str(e)
+        badan = getattr(e, "read", None)
+        if badan:
+            try:
+                sebab = json.loads(badan()).get("description", sebab)
+            except Exception:
+                pass
+        print(f"  (telegram gagal: {sebab})")
+
+    if not html:
+        return
+    # Pesan gate yang gagal berarti pertanyaan tidak terlihat sementara pipeline
+    # tetap menunggu jawabannya. Lebih baik kehilangan format daripada itu.
+    polos = re.sub(r"<[^>]+>", "", text)
+    polos = (polos.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&"))
+    kirim.pop("parse_mode", None)
+    kirim["text"] = polos[:BATAS_PESAN]
+    try:
+        urllib.request.urlopen(url, urllib.parse.urlencode(kirim).encode(), timeout=10)
+        print("  (dikirim ulang tanpa format)")
     except Exception as e:  # notifikasi tidak boleh menjatuhkan pipeline
-        print(f"  (telegram gagal: {e})")
+        print(f"  (telegram gagal lagi, tanpa format: {e})")
 
 
 # Kata-kata pilihan gate sengaja sama dengan dashboard (kartuGate di
@@ -452,7 +526,12 @@ async def ask(question: str, label: str, files: list | None = None) -> str:
     # Batas Telegram berlaku per pesan, bukan per gate. Pertanyaan panjang
     # karena itu dikirim berurutan alih-alih dipotong: memotongnya berarti
     # pemilik proyek memutuskan tanpa melihat sebagian bahannya.
-    jatah = BATAS_PESAN - max(len(kepala), len(ekor)) - 60
+    # Pesan TERAKHIR memuat kepala dan ekor sekaligus, jadi ruang untuk
+    # keduanya harus disisihkan - bukan yang terpanjang saja. Dengan max(),
+    # pesan terakhir bisa 100+ karakter melewati batas, terpotong di tengah
+    # <code> pada ekor, dan ditolak Telegram dengan 400. Akibatnya pertanyaan
+    # gate tidak pernah sampai dan pipeline menunggu jawaban yang tak terlihat.
+    jatah = BATAS_PESAN - len(kepala) - len(ekor) - 60
     bagian = bagi_pesan(question, jatah)
     n = len(bagian)
     for i, isi in enumerate(bagian, 1):
