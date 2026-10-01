@@ -339,8 +339,7 @@ def md_ke_pptx(md: Path, keluar: Path) -> tuple[Path, list[str]]:
     menggagalkan adalah sumber yang tidak bisa diurai sama sekali.
     """
     try:
-        from pptx import Presentation
-        from pptx.util import Pt
+        import slide_desain
     except ImportError as e:
         raise ExportError("Butuh python-pptx: pip install -r requirements.txt") from e
 
@@ -352,50 +351,8 @@ def md_ke_pptx(md: Path, keluar: Path) -> tuple[Path, list[str]]:
             f"{md.name}: tidak ada slide. Setiap slide harus dimulai dengan '## '."
         )
 
-    prs = Presentation()
-    tata_judul = prs.slide_layouts[0]       # judul + subjudul
-    tata_isi = prs.slide_layouts[1]         # judul + isi
-    tata_kosong = prs.slide_layouts[5]      # judul saja
-
-    s = prs.slides.add_slide(tata_judul)
-    s.shapes.title.text = judul or md.parent.name
-    if len(s.placeholders) > 1:
-        s.placeholders[1].text = "Materi pelatihan"
-
-    for sl in slides:
-        punya_teks = bool(sl["butir"])
-        slide = prs.slides.add_slide(tata_isi if punya_teks else tata_kosong)
-        slide.shapes.title.text = sl["judul"] or "(tanpa judul)"
-
-        if punya_teks:
-            tf = slide.placeholders[1].text_frame
-            tf.clear()
-            for i, b in enumerate(sl["butir"]):
-                p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
-                p.text = b
-                p.level = 0
-                p.font.size = Pt(20 if len(sl["butir"]) <= 4 else 16)
-
-        for blok in sl["kode"]:
-            if not blok:
-                continue
-            kotak = slide.shapes.add_textbox(
-                prs.slide_width // 12, prs.slide_height * 2 // 3,
-                prs.slide_width * 5 // 6, prs.slide_height // 4)
-            tf = kotak.text_frame
-            tf.word_wrap = True
-            for i, baris in enumerate(blok):
-                p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
-                p.text = baris
-                p.font.name = "Consolas"
-                p.font.size = Pt(12)
-
-        if sl["catatan"]:
-            slide.notes_slide.notes_text_frame.text = "\n".join(sl["catatan"])
-
-    keluar.parent.mkdir(parents=True, exist_ok=True)
     try:
-        prs.save(str(keluar))
+        slide_desain.buat_deck(judul or md.parent.name, slides, keluar)
     except Exception as e:
         raise ExportError(f"Gagal menyimpan {keluar.name}: {e}") from e
     return keluar, periksa_kepadatan(slides, md)
