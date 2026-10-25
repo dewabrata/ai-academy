@@ -4,18 +4,24 @@ Dipisah dari `exporter.py` karena ini keputusan rupa, bukan keputusan isi.
 `exporter.py` mengurai SLIDE.md dan memanggil `buat_deck()`; modul ini tidak
 tahu apa-apa tentang Markdown.
 
+Rupanya mengikuti deck acuan milik pemilik proyek (Gamma, palet hangat
+terakota-emas, huruf Jost/Poppins/JetBrains Mono). Yang ditiru adalah bahasa
+desainnya — palet, hierarki huruf, kartu bersudut tumpul, label eyebrow — bukan
+gambar dan ikonnya: generator ini tidak punya sumber gambar, dan kotak gambar
+yang tidak pernah terisi jauh lebih buruk daripada slide yang memang bertumpu
+pada tipografi.
+
 Keputusan yang dipegang di sini, supaya tidak tersebar:
 
-* **16:9.** Bawaan python-pptx adalah 10x7.5 inci (4:3) — format yang sudah
-  pensiun sejak proyektor kelas berganti. Deck lama proyek ini semuanya 4:3.
+* **16:9.** Bawaan python-pptx adalah 10x7.5 inci (4:3).
 * **Tidak memakai layout bawaan Office.** Semua slide dibangun dari layout
-  kosong dan bentuk yang ditaruh sendiri. Placeholder bawaan membawa tema
-  Office (Calibri abu-abu, tanpa warna) yang justru ingin kita tinggalkan.
+  kosong dan bentuk yang ditaruh sendiri; placeholder bawaan membawa tema Office
+  yang justru ingin ditinggalkan.
 * **Tanpa garis aksen di bawah judul dan tanpa bilah warna di tepi slide.**
-  Keduanya penanda khas deck buatan mesin. Pemisahan dikerjakan oleh ruang
-  kosong dan warna latar.
-* **Satu motif yang diulang:** lingkaran aksen berisi nomor slide. Itu saja,
-  dipakai konsisten di tiap slide isi.
+  Pemisahan dikerjakan oleh ruang kosong, warna latar, dan kartu.
+* **Butir pendek jadi kartu, butir panjang tetap daftar.** Deck acuan hampir
+  seluruhnya kartu, tetapi isinya ditulis khusus untuk itu. Butir panjang yang
+  dipaksa masuk kartu akan mengecil sampai tidak terbaca.
 """
 from pathlib import Path
 
@@ -26,41 +32,83 @@ from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.oxml.ns import qn
 from pptx.util import Emu, Inches, Pt
 
-# --- Palet ----------------------------------------------------------------
-# Dipilih untuk pelatihan teknis: gelap arang yang mendominasi di slide sampul
-# dan pembatas, putih bersih untuk isi, satu aksen hijau-laut. Sengaja bukan
-# biru korporat, dan bukan krem.
-TINTA = RGBColor(0x1B, 0x2A, 0x33)        # arang kebiruan - latar gelap
-TINTA_MUDA = RGBColor(0x2C, 0x3E, 0x4A)
-PUTIH = RGBColor(0xFF, 0xFF, 0xFF)
-AKSEN = RGBColor(0x00, 0xA8, 0x96)        # hijau laut - motif & penekanan
-AKSEN_TUA = RGBColor(0x02, 0x80, 0x90)
-REDUP = RGBColor(0x62, 0x75, 0x7F)        # keterangan, nomor halaman
-REDUP_TERANG = RGBColor(0x9E, 0xB0, 0xB9)
-KODE_BG = RGBColor(0x14, 0x21, 0x2A)
-KODE_FG = RGBColor(0xD6, 0xE4, 0xEA)
+
+def _w(h):
+    return RGBColor(int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+
+
+# --- Palet (diambil dari deck acuan) --------------------------------------
+LATAR = _w("FFFFF4")          # krem hangat, latar semua slide isi
+GELAP = _w("282828")          # latar slide pembatas
+TINTA = _w("282828")          # judul dan teks utama
+TEKS2 = _w("4A4540")          # isi sekunder
+REDUP = _w("6B625A")
+FOOTER = _w("7A7068")
+TERAKOTA = _w("B33F00")       # eyebrow, nomor besar
+EMAS = _w("F2B906")
+HIJAU = _w("1F6B35")
+AMBER = _w("9A5A00")
+TERANG = _w("FFFFF4")         # teks di atas latar gelap
+TERANG2 = _w("E8E1D2")
+
+KARTU_ISI = _w("FFFDF8")
+KARTU_GARIS = _w("EFE6CC")
+KARTU_HIJAU = _w("E3F6E6")
+KARTU_HIJAU_TEKS = _w("1F3A26")
+KARTU_EMAS = _w("FFF6DB")
+KODE_BG = _w("282828")
+KODE_FG = _w("FFFFF4")
+
+# Warna label kartu, dipakai berputar supaya grid tidak monoton — persis cara
+# deck acuan membedakan kartu yang bersebelahan.
+PUTAR_LABEL = [TERAKOTA, HIJAU, AMBER, TINTA]
 
 # --- Huruf ----------------------------------------------------------------
-# Cambria dan Calibri ikut setiap pemasangan Office dan lebarnya terbaca sama
-# di LibreOffice, jadi pemeriksaan luberan teks bisa dipercaya. Consolas untuk
-# kode: ukurannya dihitung dari baris terpanjang, jadi tidak bergantung tebakan.
-HURUF_JUDUL = "Cambria"
-HURUF_ISI = "Calibri"
-HURUF_KODE = "Consolas"
+# Tidak ikut paket Office. Pemilik proyek memilih memakainya apa adanya, sama
+# seperti deck acuannya; di komputer tanpa font ini PowerPoint mengganti sendiri.
+HURUF_JUDUL = "Jost"
+HURUF_ISI = "Poppins"
+HURUF_KODE = "JetBrains Mono"
 
 # --- Tata letak (inci) ----------------------------------------------------
 LEBAR, TINGGI = 13.333, 7.5
-TEPI = 0.8                                 # margin kiri/kanan
-ATAS_JUDUL = 0.62
-BADAN_ATAS = 1.95                          # tempat isi mulai di slide isi
-BADAN_BAWAH = 6.75                         # batas bawah isi; sisanya nomor
-JARAK = 0.35
+TEPI = 0.89                   # margin kiri, mengikuti grid deck acuan
+ISI_LEBAR = 11.9
+ATAS_EYEBROW = 0.72
+ATAS_JUDUL = 1.04
+BADAN_BAWAH = 6.55
+FOOTER_Y = 6.83
+JARAK = 0.3
 
-MAKS_KODE_PT, MIN_KODE_PT = 13.0, 8.5
+MAKS_KODE_PT, MIN_KODE_PT = 13.0, 8.0
+# Butir sepanjang ini atau kurang masih enak dibaca di dalam kartu.
+MAKS_HURUF_KARTU = 110
+# Tinggi kartu terkecil yang masih memuat label nomor dan satu baris isi.
+# Di bawah ini kotak teks di dalamnya menjadi negatif.
+MIN_KARTU = 0.98
+# Lebar rata-rata huruf, dalam em, untuk memperkirakan pembungkusan baris.
+# Angka judul dikalibrasi dari render PowerPoint yang sebenarnya: 0.47 membuat
+# judul 48 huruf diperkirakan 2 baris padahal tergambar 3, dan subjudulnya
+# tertimpa. Lebih baik terlalu hati-hati - salah ke arah ini hanya menyisakan
+# sedikit ruang, salah ke arah sebaliknya membuat teks bertabrakan.
+EM_JUDUL = 0.55
+EM_ISI = 0.49
+
+
+# Ukuran terkecil yang masih sah. PowerPoint MENOLAK membuka berkas yang
+# memuat bentuk berukuran nol atau negatif - sementara python-pptx menuliskannya
+# tanpa keluhan dan validator XML meloloskannya. Pagar ini mengubah kesalahan
+# hitung tata letak menjadi slide yang jelek, bukan berkas yang tidak bisa
+# dibuka sama sekali.
+MIN_UKURAN = 0.08
+
+
+def _sah(v):
+    return max(float(v), MIN_UKURAN)
 
 
 def _kotak(slide, x, y, lebar, tinggi):
-    k = slide.shapes.add_textbox(Inches(x), Inches(y), Inches(lebar), Inches(tinggi))
+    k = slide.shapes.add_textbox(Inches(x), Inches(y), Inches(_sah(lebar)), Inches(_sah(tinggi)))
     tf = k.text_frame
     tf.word_wrap = True
     # Padding bawaan textbox menggeser teks beberapa milimeter dari posisi yang
@@ -70,7 +118,7 @@ def _kotak(slide, x, y, lebar, tinggi):
 
 
 def _tulis(tf, teks, *, ukuran, warna, huruf=HURUF_ISI, tebal=False,
-           miring=False, spasi_setelah=0, rata=PP_ALIGN.LEFT, baru=False):
+           spasi_setelah=0, rata=PP_ALIGN.LEFT, baru=False):
     p = tf.add_paragraph() if baru else tf.paragraphs[0]
     p.alignment = rata
     p.space_after = Pt(spasi_setelah)
@@ -78,40 +126,17 @@ def _tulis(tf, teks, *, ukuran, warna, huruf=HURUF_ISI, tebal=False,
     r.text = teks
     r.font.size = Pt(ukuran)
     r.font.bold = tebal
-    r.font.italic = miring
     r.font.name = huruf
     r.font.color.rgb = warna
     return p
-
-
-def _butir_bulat(p, warna=AKSEN):
-    """Ganti bulatan bawaan dengan titik beraksen.
-
-    python-pptx tidak membuka pengaturan bullet, jadi elemennya ditulis
-    langsung. Tanpa ini bulatannya hitam dan ikut tema Office.
-    """
-    pPr = p._p.get_or_add_pPr()
-    pPr.set("marL", str(Emu(Inches(0.28))))
-    pPr.set("indent", str(-Emu(Inches(0.28))))
-    for tag in ("a:buNone", "a:buChar", "a:buAutoNum"):
-        for lama in pPr.findall(qn(tag)):
-            pPr.remove(lama)
-    warna_el = pPr.makeelement(qn("a:buClr"), {})
-    srgb = warna_el.makeelement(qn("a:srgbClr"), {"val": str(warna)})
-    warna_el.append(srgb)
-    huruf_el = pPr.makeelement(qn("a:buFont"), {"typeface": "Arial"})
-    tanda = pPr.makeelement(qn("a:buChar"), {"char": "•"})
-    for el in (warna_el, huruf_el, tanda):
-        pPr.append(el)
 
 
 def _tanpa_bayangan(bentuk):
     """Matikan bayangan sungguhan, bukan hanya `shadow.inherit = False`.
 
     add_shape() menyertakan <p:style> yang menunjuk effectRef tema; selama
-    rujukan itu ada, LibreOffice dan PowerPoint tetap menggambar bayangan
-    meski daftar efeknya kosong. Lingkaran nomor dan kartu kode jadi tampak
-    berhalo abu-abu - persis kesan "template bawaan" yang ingin dihindari.
+    rujukan itu ada, PowerPoint tetap menggambar bayangan meski daftar efeknya
+    kosong — dan kartu jadi tampak berhalo abu-abu.
     """
     bentuk.shadow.inherit = False
     gaya = bentuk._element.find(qn("p:style"))
@@ -126,153 +151,271 @@ def _latar(slide, warna):
     slide.background.fill.fore_color.rgb = warna
 
 
-def _lingkaran_nomor(slide, nomor, x, y, diameter=0.46, isi=AKSEN, teks=PUTIH):
-    """Motif deck: satu lingkaran beraksen berisi nomor slide."""
-    bentuk = slide.shapes.add_shape(
-        MSO_SHAPE.OVAL, Inches(x), Inches(y), Inches(diameter), Inches(diameter))
-    bentuk.fill.solid()
-    bentuk.fill.fore_color.rgb = isi
-    bentuk.line.fill.background()
-    _tanpa_bayangan(bentuk)
-    tf = bentuk.text_frame
-    tf.margin_left = tf.margin_right = tf.margin_top = tf.margin_bottom = 0
-    tf.vertical_anchor = MSO_ANCHOR.MIDDLE
-    _tulis(tf, str(nomor), ukuran=15, warna=teks, tebal=True, rata=PP_ALIGN.CENTER)
-    return bentuk
+def _bentuk(slide, jenis, x, y, lebar, tinggi, isi, garis=None, tebal_garis=1.0,
+            radius=None):
+    b = slide.shapes.add_shape(jenis, Inches(x), Inches(y),
+                               Inches(_sah(lebar)), Inches(_sah(tinggi)))
+    b.fill.solid()
+    b.fill.fore_color.rgb = isi
+    if garis is None:
+        b.line.fill.background()
+    else:
+        b.line.color.rgb = garis
+        b.line.width = Pt(tebal_garis)
+    _tanpa_bayangan(b)
+    if radius is not None and len(b.adjustments):
+        b.adjustments[0] = radius
+    return b
 
 
-def _baris_judul(judul, lebar_in, ukuran=31.0):
-    """Berapa baris judul akan terpakai. Cambria rata-rata 0.5 em per huruf."""
-    per_baris = max(int(lebar_in * 72.0 / (ukuran * 0.5)), 10)
-    return max(1, -(-len(judul) // per_baris))
+def _butir_bulat(p, warna=TERAKOTA):
+    """Ganti bulatan bawaan dengan titik beraksen.
 
-
-def _tinggi_butir(butir, ukuran, lebar_in):
-    """Perkiraan tinggi daftar butir, dalam inci.
-
-    Dipakai supaya kartu kode menempel di bawah butir alih-alih dilempar ke
-    dasar ruang yang tersisa - yang meninggalkan lubang kosong di tengah
-    slide. Lebar rata-rata huruf Calibri sekitar 0.48 em.
+    python-pptx tidak membuka pengaturan bullet, jadi elemennya ditulis
+    langsung. Tanpa ini bulatannya hitam dan ikut tema Office.
     """
-    per_baris = max(int((lebar_in - 0.3) * 72.0 / (ukuran * 0.48)), 10)
-    baris = sum(max(1, -(-len(b) // per_baris)) for b in butir)
-    return (baris * ukuran * 1.22 + len(butir) * ukuran * 0.62) / 72.0
+    pPr = p._p.get_or_add_pPr()
+    pPr.set("marL", str(Emu(Inches(0.26))))
+    pPr.set("indent", str(-Emu(Inches(0.26))))
+    for tag in ("a:buNone", "a:buChar", "a:buAutoNum"):
+        for lama in pPr.findall(qn(tag)):
+            pPr.remove(lama)
+    el_warna = pPr.makeelement(qn("a:buClr"), {})
+    el_warna.append(el_warna.makeelement(qn("a:srgbClr"), {"val": str(warna)}))
+    el_huruf = pPr.makeelement(qn("a:buFont"), {"typeface": "Arial"})
+    el_tanda = pPr.makeelement(qn("a:buChar"), {"char": "•"})
+    for el in (el_warna, el_huruf, el_tanda):
+        pPr.append(el)
+
+
+# --- Komponen -------------------------------------------------------------
+def _eyebrow(slide, teks, y=ATAS_EYEBROW, warna=TERAKOTA):
+    """Label kecil huruf besar di atas judul. Motif paling khas deck acuan."""
+    tf = _kotak(slide, TEPI, y, ISI_LEBAR, 0.26)
+    _tulis(tf, teks.upper()[:70], ukuran=12, warna=warna, tebal=True)
+
+
+def _footer(slide, kiri_teks, kanan_teks=""):
+    tf = _kotak(slide, TEPI, FOOTER_Y, ISI_LEBAR * 0.7, 0.26)
+    _tulis(tf, kiri_teks, ukuran=12, warna=FOOTER)
+    if kanan_teks:
+        tf2 = _kotak(slide, TEPI + ISI_LEBAR - 2.0, FOOTER_Y, 2.0, 0.26)
+        _tulis(tf2, kanan_teks, ukuran=12, warna=FOOTER, rata=PP_ALIGN.RIGHT)
+
+
+def _baris_teks(teks, lebar_in, ukuran, lebar_huruf=0.5):
+    per_baris = max(int(lebar_in * 72.0 / (ukuran * lebar_huruf)), 8)
+    return max(1, -(-len(teks) // per_baris))
 
 
 def _ukuran_kode(blok, lebar_in):
     """Ukuran huruf terbesar yang membuat baris terpanjang tetap muat.
 
-    Lebar Consolas sekitar 0.55 em. Dihitung, bukan ditebak: satu baris yang
-    meluber keluar kartu adalah cacat yang paling cepat terlihat di layar.
+    Dihitung, bukan ditebak: satu baris kode yang meluber keluar kartu adalah
+    cacat yang paling cepat terlihat di layar.
     """
     panjang = max((len(b) for b in blok), default=1) or 1
-    pas = (lebar_in * 72.0) / (panjang * 0.55)
+    pas = (lebar_in * 72.0) / (panjang * 0.58)
     return max(MIN_KODE_PT, min(MAKS_KODE_PT, pas))
 
 
+def _tinggi_kode(blok, lebar_in):
+    ukuran = _ukuran_kode(blok, lebar_in - 0.5)
+    return len(blok) * (ukuran * 1.3) / 72.0 + 0.52
+
+
 def _kartu_kode(slide, blok, x, y, lebar, tinggi):
-    kartu = slide.shapes.add_shape(
-        MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(lebar), Inches(tinggi))
-    kartu.fill.solid()
-    kartu.fill.fore_color.rgb = KODE_BG
-    kartu.line.fill.background()
-    _tanpa_bayangan(kartu)
-    kartu.adjustments[0] = 0.04
-    sisip = 0.22
-    tf = _kotak(slide, x + sisip, y + sisip * 0.8,
-                lebar - sisip * 2, tinggi - sisip * 1.6)
+    _bentuk(slide, MSO_SHAPE.ROUNDED_RECTANGLE, x, y, lebar, tinggi,
+            KODE_BG, radius=0.08)
+    sisip = 0.25
+    tf = _kotak(slide, x + sisip, y + sisip * 0.85,
+                lebar - sisip * 2, tinggi - sisip * 1.7)
     ukuran = _ukuran_kode(blok, lebar - sisip * 2)
     for i, baris in enumerate(blok):
         _tulis(tf, baris or " ", ukuran=ukuran, warna=KODE_FG,
                huruf=HURUF_KODE, baru=i > 0)
-    return kartu
 
 
-def _tinggi_kode(blok, lebar_in):
-    """Tinggi kartu yang cukup untuk semua barisnya, dalam inci."""
-    ukuran = _ukuran_kode(blok, lebar_in - 0.44)
-    return len(blok) * (ukuran * 1.25) / 72.0 + 0.5
+def _kartu_butir(slide, teks, x, y, lebar, tinggi, warna_label, nomor):
+    """Satu kartu grid: nomor beraksen di atas, isi butir di bawahnya."""
+    _bentuk(slide, MSO_SHAPE.ROUNDED_RECTANGLE, x, y, lebar, tinggi,
+            KARTU_ISI, garis=KARTU_GARIS, tebal_garis=1.0, radius=0.095)
+    sisip = 0.2
+    tf = _kotak(slide, x + sisip, y + sisip, lebar - sisip * 2, 0.26)
+    _tulis(tf, f"{nomor:02d}", ukuran=12, warna=warna_label,
+           huruf=HURUF_JUDUL, tebal=True)
+    tfb = _kotak(slide, x + sisip, y + sisip + 0.32,
+                 lebar - sisip * 2, tinggi - sisip * 2 - 0.32)
+    _tulis(tfb, teks, ukuran=12, warna=TEKS2)
+
+
+def _boleh_jadi_kartu(butir, tersedia):
+    """Kartu hanya kalau isinya cocok DAN ruangnya cukup.
+
+    Deck acuan hampir seluruhnya kartu, tetapi kalimatnya ditulis khusus untuk
+    itu. Butir panjang yang dipaksa masuk kartu mengecil sampai tidak terbaca.
+    Dan slide yang juga memuat blok kode panjang sering hanya menyisakan ruang
+    di bawah tinggi minimum kartu - di situ daftar yang hurufnya bisa mengecil
+    adalah jawaban yang benar.
+    """
+    if not (2 <= len(butir) <= 6
+            and all(len(b) <= MAKS_HURUF_KARTU for b in butir)):
+        return False
+    _, baris, _, tinggi, sela = _ukuran_grid(butir, tersedia)
+    return baris * tinggi + (baris - 1) * sela <= tersedia + 0.01
+
+
+def _ukuran_grid(butir, tersedia):
+    """(kolom, baris, lebar, tinggi) satu grid kartu - tanpa menggambar."""
+    n = len(butir)
+    kolom = 2 if n in (2, 4) else 3
+    baris = -(-n // kolom)
+    sela = 0.22
+    lebar = (ISI_LEBAR - sela * (kolom - 1)) / kolom
+    maks_baris = max(_baris_teks(b, lebar - 0.4, 12, EM_ISI) for b in butir)
+    muat = (tersedia - sela * (baris - 1)) / baris
+    tinggi = max(MIN_KARTU, min(0.62 + maks_baris * 0.21, muat))
+    return kolom, baris, lebar, tinggi, sela
+
+
+def _tinggi_grid(butir, tersedia):
+    _, baris, _, tinggi, sela = _ukuran_grid(butir, tersedia)
+    return baris * tinggi + (baris - 1) * sela
+
+
+def _tinggi_daftar(butir, tersedia):
+    ukuran = _ukuran_daftar(butir, tersedia)
+    return min(_tinggi_daftar_pada(butir, ukuran), tersedia)
+
+
+def _tinggi_daftar_pada(butir, ukuran):
+    return sum(_baris_teks(b, ISI_LEBAR, ukuran, EM_ISI) * ukuran * 1.26
+               + ukuran * 0.6 for b in butir) / 72.0
+
+
+def _ukuran_daftar(butir, tersedia):
+    ukuran = 17 if len(butir) <= 4 else (15 if len(butir) <= 6 else 13)
+    while ukuran > 11 and _tinggi_daftar_pada(butir, ukuran) > tersedia:
+        ukuran -= 1
+    return ukuran
+
+
+def _grid_kartu(slide, butir, y, tersedia):
+    """Gambar butir sebagai grid kartu. Mengembalikan tinggi yang terpakai."""
+    # Tinggi kartu mengikuti butir terpanjang, supaya satu baris kartu rata.
+    kolom, baris, lebar, tinggi, sela = _ukuran_grid(butir, tersedia)
+    for i, b in enumerate(butir):
+        kx = TEPI + (i % kolom) * (lebar + sela)
+        ky = y + (i // kolom) * (tinggi + sela)
+        _kartu_butir(slide, b, kx, ky, lebar, tinggi,
+                     PUTAR_LABEL[i % len(PUTAR_LABEL)], i + 1)
+    return baris * tinggi + (baris - 1) * sela
+
+
+def _daftar_butir(slide, butir, y, tersedia):
+    ukuran = _ukuran_daftar(butir, tersedia)
+    tf = _kotak(slide, TEPI, y, ISI_LEBAR, max(tersedia, 0.6))
+    for i, b in enumerate(butir):
+        p = _tulis(tf, b, ukuran=ukuran, warna=TEKS2,
+                   spasi_setelah=ukuran * 0.6, baru=i > 0)
+        _butir_bulat(p)
+    return min(_tinggi_daftar_pada(butir, ukuran), tersedia)
 
 
 # --- Jenis slide ----------------------------------------------------------
-def _sampul(prs, judul, subjudul):
+def _sampul(prs, judul, subjudul, label):
     slide = prs.slides.add_slide(prs.slide_layouts[6])
-    _latar(slide, TINTA)
-    tf = _kotak(slide, TEPI, 2.35, LEBAR - TEPI * 2 - 1.2, 2.6)
-    _tulis(tf, judul, ukuran=40, warna=PUTIH, huruf=HURUF_JUDUL, tebal=True,
-           spasi_setelah=14)
+    _latar(slide, LATAR)
+    # Panel kanan: blok warna penuh tinggi, penyeimbang judul yang rata kiri.
+    _bentuk(slide, MSO_SHAPE.RECTANGLE, 9.0, 0.0, LEBAR - 9.0, TINGGI, GELAP)
+
+    lebar_kiri = 7.58
+    # Judul panjang pada 46pt menjadi tiga baris dan menabrak subjudul. Ukuran
+    # diturunkan sampai muat dua baris, lalu subjudul ditaruh SESUDAH tinggi
+    # judul yang sebenarnya - bukan di titik tetap.
+    ukuran = 46
+    while ukuran > 28 and _baris_teks(judul, lebar_kiri, ukuran, EM_JUDUL) > 2:
+        ukuran -= 2
+    baris = _baris_teks(judul, lebar_kiri, ukuran, EM_JUDUL)
+    tinggi_judul = baris * ukuran * 1.18 / 72.0
+
+    y = 2.99
+    _eyebrow(slide, label, y=y - 0.48)
+    tf = _kotak(slide, TEPI, y, lebar_kiri, tinggi_judul + 0.1)
+    _tulis(tf, judul, ukuran=ukuran, warna=TINTA, huruf=HURUF_JUDUL, tebal=True)
     if subjudul:
-        _tulis(tf, subjudul, ukuran=17, warna=REDUP_TERANG, baru=True)
+        tf2 = _kotak(slide, TEPI, y + tinggi_judul + 0.46, lebar_kiri, 0.9)
+        _tulis(tf2, subjudul, ukuran=16, warna=TEKS2)
+    # Tanpa footer: isinya akan mengulang eyebrow kata demi kata.
     return slide
 
 
-def _pembatas(prs, nomor, judul):
+def _pembatas(prs, nomor, judul, total):
     """Slide tanpa butir dan tanpa kode diperlakukan sebagai pembatas bagian."""
     slide = prs.slides.add_slide(prs.slide_layouts[6])
-    _latar(slide, TINTA)
-    _lingkaran_nomor(slide, nomor, TEPI, 2.72, diameter=0.62)
-    tf = _kotak(slide, TEPI + 0.95, 2.6, LEBAR - TEPI * 2 - 0.95, 1.9)
-    _tulis(tf, judul, ukuran=32, warna=PUTIH, huruf=HURUF_JUDUL, tebal=True)
+    _latar(slide, GELAP)
+    _eyebrow(slide, f"Bagian {nomor} dari {total}", y=2.42, warna=EMAS)
+    tf = _kotak(slide, TEPI, 2.86, ISI_LEBAR - 1.4, 1.9)
+    _tulis(tf, judul, ukuran=44, warna=TERANG, huruf=HURUF_JUDUL, tebal=True)
+    tf2 = _kotak(slide, TEPI, FOOTER_Y, ISI_LEBAR, 0.26)
+    _tulis(tf2, f"{nomor:02d}", ukuran=12, warna=TERANG2, huruf=HURUF_JUDUL, tebal=True)
     return slide
 
 
-def _nomor_halaman(slide, nomor):
-    tf = _kotak(slide, LEBAR - TEPI - 1.0, TINGGI - 0.62, 1.0, 0.3)
-    _tulis(tf, str(nomor), ukuran=10, warna=REDUP, rata=PP_ALIGN.RIGHT)
-
-
-def _isi(prs, nomor, sl):
+def _isi(prs, nomor, sl, total, konteks):
     slide = prs.slides.add_slide(prs.slide_layouts[6])
-    _latar(slide, PUTIH)
-    _lingkaran_nomor(slide, nomor, TEPI, ATAS_JUDUL + 0.04)
+    _latar(slide, LATAR)
 
-    kiri = TEPI + 0.72
-    lebar = LEBAR - kiri - TEPI
     judul = sl["judul"] or "(tanpa judul)"
-    baris_judul = _baris_judul(judul, lebar)
-    tinggi_judul = baris_judul * 31 * 1.22 / 72.0
-    tf = _kotak(slide, kiri, ATAS_JUDUL, lebar, tinggi_judul + 0.1)
-    _tulis(tf, judul, ukuran=31, warna=TINTA, huruf=HURUF_JUDUL, tebal=True)
+    # Eyebrow memakai judul DECK, bukan judul slide: memakai judul slide
+    # membuatnya tercetak dua kali persis, satu di atas yang lain.
+    _eyebrow(slide, konteks)
+
+    baris_judul = _baris_teks(judul, ISI_LEBAR, 32, EM_JUDUL)
+    tinggi_judul = baris_judul * 32 * 1.2 / 72.0
+    tf = _kotak(slide, TEPI, ATAS_JUDUL, ISI_LEBAR, tinggi_judul + 0.1)
+    _tulis(tf, judul, ukuran=32, warna=TINTA, huruf=HURUF_JUDUL, tebal=True)
 
     butir = sl["butir"]
     blok = [b for b in sl["kode"] if b]
-    # Badan menempel di bawah judul. Titik mulai tetap membuat slide berjudul
-    # satu baris menganga di atas, dan berjudul tiga baris berdesakan.
-    y = max(BADAN_ATAS, ATAS_JUDUL + tinggi_judul + 0.42)
+    y = ATAS_JUDUL + tinggi_judul + 0.42
     tersedia = BADAN_BAWAH - y
 
+    perlu_kode = 0.0
     if blok:
-        # Kode mengambil tinggi yang ia butuhkan, butir memakai sisanya. Deck
-        # lama menaruh kartu kode di titik tetap 2/3 tinggi slide sehingga ia
-        # menimpa daftar butir di hampir setiap slide yang punya keduanya.
-        perlu = sum(_tinggi_kode(b, lebar) for b in blok) + JARAK * len(blok)
-        perlu = min(perlu, tersedia - (1.1 if butir else 0))
-    else:
-        perlu = 0.0
+        # Kode mengambil tinggi yang ia butuhkan, butir memakai sisanya. Titik
+        # tetap untuk kartu kode membuatnya menimpa daftar butir di tiap slide
+        # yang punya keduanya.
+        perlu_kode = sum(_tinggi_kode(b, ISI_LEBAR) for b in blok) + JARAK * len(blok)
+        perlu_kode = min(perlu_kode, tersedia - (1.0 if butir else 0))
+
+    # Isi yang pendek menumpuk di atas dan meninggalkan separuh slide kosong.
+    # Tingginya dihitung lebih dulu, lalu seluruh blok digeser turun separuh
+    # dari sisa ruang - slide jadi seimbang tanpa mengubah ukuran apa pun.
+    tinggi_butir = 0.0
+    if butir:
+        ruang_butir = tersedia - perlu_kode - (JARAK if blok else 0)
+        tinggi_butir = (_tinggi_grid(butir, ruang_butir) if _boleh_jadi_kartu(butir, ruang_butir)
+                        else _tinggi_daftar(butir, ruang_butir))
+    total_isi = tinggi_butir + perlu_kode + (JARAK if (butir and blok) else 0)
+    y += max(0.0, (tersedia - total_isi) * 0.5)
 
     if butir:
-        ukuran = 18 if len(butir) <= 4 else (16 if len(butir) <= 6 else 14)
-        # Kalau tidak ada kode dan ruangnya longgar, hurufnya dinaikkan
-        # daripada menyisakan separuh slide kosong di bawah.
-        if not blok:
-            while ukuran < 24 and _tinggi_butir(butir, ukuran + 1, lebar) < tersedia:
-                ukuran += 1
-        tinggi_butir = min(_tinggi_butir(butir, ukuran, lebar), tersedia - perlu)
-        tfb = _kotak(slide, kiri, y, lebar, max(tinggi_butir, 0.6))
-        for i, b in enumerate(butir):
-            p = _tulis(tfb, b, ukuran=ukuran, warna=TINTA_MUDA,
-                       spasi_setelah=ukuran * 0.62, baru=i > 0)
-            _butir_bulat(p)
-        y += max(tinggi_butir, 0.6) + JARAK
+        ruang = tersedia - perlu_kode - (JARAK if blok else 0)
+        if _boleh_jadi_kartu(butir, ruang):
+            terpakai = _grid_kartu(slide, butir, y, ruang)
+        else:
+            terpakai = _daftar_butir(slide, butir, y, ruang)
+        y += terpakai + JARAK
 
     for b in blok:
-        tinggi = min(_tinggi_kode(b, lebar), max(BADAN_BAWAH - y, 0.6))
+        tinggi = min(_tinggi_kode(b, ISI_LEBAR), max(BADAN_BAWAH - y, 0.6))
         if tinggi < 0.5:
             break
-        _kartu_kode(slide, b, kiri, y, lebar, tinggi)
+        _kartu_kode(slide, b, TEPI, y, ISI_LEBAR, tinggi)
         y += tinggi + JARAK
 
-    _nomor_halaman(slide, nomor)
+    _footer(slide, f"Slide {nomor} dari {total}", f"{nomor:02d}")
     return slide
 
 
@@ -281,11 +424,13 @@ def buat_deck(judul: str, slides: list[dict], keluar: Path,
     """Tulis deck ber-desain ke `keluar`. `slides` dari exporter.parse_slides()."""
     prs = Presentation()
     prs.slide_width, prs.slide_height = Inches(LEBAR), Inches(TINGGI)
+    total = len(slides)
 
-    _sampul(prs, judul, subjudul)
+    _sampul(prs, judul, subjudul, "Materi pelatihan")
     for i, sl in enumerate(slides, 1):
         kosong = not sl["butir"] and not any(sl["kode"])
-        s = _pembatas(prs, i, sl["judul"] or "(tanpa judul)") if kosong else _isi(prs, i, sl)
+        s = (_pembatas(prs, i, sl["judul"] or "(tanpa judul)", total) if kosong
+             else _isi(prs, i, sl, total, judul))
         if sl["catatan"]:
             s.notes_slide.notes_text_frame.text = "\n".join(sl["catatan"])
 
