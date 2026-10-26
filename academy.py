@@ -36,6 +36,7 @@ from dotenv import load_dotenv
 from claude_agent_sdk import (
     AssistantMessage,
     ClaudeAgentOptions,
+    ClaudeSDKError,
     RateLimitEvent,
     ResultMessage,
     SystemMessage,
@@ -393,52 +394,63 @@ async def run_stage(label: str, prompt: str, role: dict, cwd: Path, budget_usd: 
     )
     final = ""
     err_kind = None
-    async for msg in query(prompt=prompt, options=opts):
-        if isinstance(msg, SystemMessage):
-            if msg.subtype == "init":
-                # Alias "opus" diterjemahkan CLI dan bisa berpindah saat Claude
-                # Code diperbarui. Catat model SEBENARNYA supaya biaya dan mutu
-                # tiap tahap bisa dirunut ke model yang nyata dipakai.
-                asli = msg.data.get("model")
-                if asli and asli != role.get("model"):
-                    print(f"  [{label}] model: {role.get('model')} -> {asli}")
-                monitor.emit("model", label=label, alias=role.get("model"), model=asli)
+    # Galat yang DILEMPAR iterator SDK - bukan yang datang sebagai pesan - harus
+    # ikut menjadi StageFailed. Tanpa ini ia melewati run_stage_retry, yang
+    # hanya menangkap StageFailed, lalu menjatuhkan seluruh pipeline. Kejadian
+    # 26 Okt 2026: "You've hit your session limit" terbit sebagai ResultError,
+    # jadi POLA_KUOTA tidak pernah sempat membacanya dan pipeline mati di
+    # blueprint padahal QUOTA_WAIT=auto seharusnya membuatnya menunggu reset.
+    try:
+        async for msg in query(prompt=prompt, options=opts):
+            if isinstance(msg, SystemMessage):
+                if msg.subtype == "init":
+                    # Alias "opus" diterjemahkan CLI dan bisa berpindah saat Claude
+                    # Code diperbarui. Catat model SEBENARNYA supaya biaya dan mutu
+                    # tiap tahap bisa dirunut ke model yang nyata dipakai.
+                    asli = msg.data.get("model")
+                    if asli and asli != role.get("model"):
+                        print(f"  [{label}] model: {role.get('model')} -> {asli}")
+                    monitor.emit("model", label=label, alias=role.get("model"), model=asli)
+                    if SESSIONS:
+                        SESSIONS.set(label, msg.data.get("session_id"))
+            elif isinstance(msg, RateLimitEvent):
+                note_rate_limit(msg)
+            elif isinstance(msg, AssistantMessage):
+                if msg.error:
+                    err_kind = msg.error
+                    print(f"  [{label}] !! error dari API: {msg.error}")
+                for b in msg.content:
+                    if isinstance(b, TextBlock) and b.text.strip():
+                        print(f"  [{label}] {b.text.strip()[:300]}")
+                        monitor.emit("agent", label=label, text=b.text.strip()[:600])
+                    elif isinstance(b, ToolUseBlock):
+                        tgt = (b.input.get("file_path") or b.input.get("command")
+                               or b.input.get("pattern") or "")
+                        monitor.emit("tool", label=label, tool=b.name, target=str(tgt)[:160])
+            elif isinstance(msg, ResultMessage):
                 if SESSIONS:
-                    SESSIONS.set(label, msg.data.get("session_id"))
-        elif isinstance(msg, RateLimitEvent):
-            note_rate_limit(msg)
-        elif isinstance(msg, AssistantMessage):
-            if msg.error:
-                err_kind = msg.error
-                print(f"  [{label}] !! error dari API: {msg.error}")
-            for b in msg.content:
-                if isinstance(b, TextBlock) and b.text.strip():
-                    print(f"  [{label}] {b.text.strip()[:300]}")
-                    monitor.emit("agent", label=label, text=b.text.strip()[:600])
-                elif isinstance(b, ToolUseBlock):
-                    tgt = (b.input.get("file_path") or b.input.get("command")
-                           or b.input.get("pattern") or "")
-                    monitor.emit("tool", label=label, tool=b.name, target=str(tgt)[:160])
-        elif isinstance(msg, ResultMessage):
-            if SESSIONS:
-                SESSIONS.set(label, msg.session_id)
-            final = msg.result or ""
-            print(f"### [{label}] selesai — turns={msg.num_turns} "
-                  f"cost=${(msg.total_cost_usd or 0):.3f} subtype={msg.subtype}")
-            monitor.add_cost(label, msg.total_cost_usd or 0)
-            monitor.emit("stage_end", label=label, turns=msg.num_turns,
-                         cost=msg.total_cost_usd, subtype=msg.subtype, ok=not msg.is_error)
-            monitor.tg_send(monitor.form(
-                f"{'✔' if not msg.is_error else '✖'} {label} selesai", [
-                    ("Turn", msg.num_turns),
-                    ("Biaya", f"${(msg.total_cost_usd or 0):.2f}"),
-                    ("Kumulatif", f"${biaya_total():.2f}"),
-                    ("Hasil", None if not msg.is_error else msg.subtype),
-                ]), html=True)
-            if msg.is_error or msg.subtype != "success":
-                err_kind = err_kind or msg.subtype or "unknown"
-                print(f"### [{label}] GAGAL: subtype={msg.subtype} "
-                      f"http={msg.api_error_status} errors={msg.errors}")
+                    SESSIONS.set(label, msg.session_id)
+                final = msg.result or ""
+                print(f"### [{label}] selesai — turns={msg.num_turns} "
+                      f"cost=${(msg.total_cost_usd or 0):.3f} subtype={msg.subtype}")
+                monitor.add_cost(label, msg.total_cost_usd or 0)
+                monitor.emit("stage_end", label=label, turns=msg.num_turns,
+                             cost=msg.total_cost_usd, subtype=msg.subtype, ok=not msg.is_error)
+                monitor.tg_send(monitor.form(
+                    f"{'✔' if not msg.is_error else '✖'} {label} selesai", [
+                        ("Turn", msg.num_turns),
+                        ("Biaya", f"${(msg.total_cost_usd or 0):.2f}"),
+                        ("Kumulatif", f"${biaya_total():.2f}"),
+                        ("Hasil", None if not msg.is_error else msg.subtype),
+                    ]), html=True)
+                if msg.is_error or msg.subtype != "success":
+                    err_kind = err_kind or msg.subtype or "unknown"
+                    print(f"### [{label}] GAGAL: subtype={msg.subtype} "
+                          f"http={msg.api_error_status} errors={msg.errors}")
+    except ClaudeSDKError as e:
+        monitor.emit("error", label=label, error=type(e).__name__)
+        raise StageFailed(f"{label}: {e}") from e
+
     if err_kind:
         monitor.emit("error", label=label, error=err_kind)
         raise StageFailed(f"{label}: {err_kind}")
